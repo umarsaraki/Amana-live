@@ -728,6 +728,67 @@ app.post("/api/follow/:userId/pin", requireAuth, async (req, res) => {
   res.json({ pinned: result.rows[0].pinned });
 });
 
+// Public profile of ANY user (no email/phone - those stay private) -------
+app.get("/api/users/:id/profile", requireAuth, async (req, res) => {
+  const targetId = Number(req.params.id);
+  const result = await query(
+    "SELECT id, amanaId, username, bio, gender, country, createdAt, agencyId, isHostBadge, isDbBadge, prettyId FROM Users WHERE id = $1",
+    [targetId]
+  );
+  if (result.rows.length === 0) return res.status(404).json({ error: "User not found" });
+  const row = result.rows[0];
+  const [following, fans, friends, sentSum, receivedSum, isFollowing] = await Promise.all([
+    query("SELECT COUNT(*) FROM Follows WHERE followerId = $1", [targetId]),
+    query("SELECT COUNT(*) FROM Follows WHERE followedId = $1", [targetId]),
+    query(
+      `SELECT COUNT(*) FROM Follows f1
+       WHERE f1.followerId = $1
+       AND EXISTS (SELECT 1 FROM Follows f2 WHERE f2.followerId = f1.followedId AND f2.followedId = $1)`,
+      [targetId]
+    ),
+    query("SELECT COALESCE(SUM(-amount),0) AS total FROM Transactions WHERE userId = $1 AND type = 'gift_sent'", [targetId]),
+    query("SELECT COALESCE(SUM(amount),0) AS total FROM Transactions WHERE userId = $1 AND type = 'gift_received'", [targetId]),
+    query("SELECT 1 FROM Follows WHERE followerId = $1 AND followedId = $2", [req.user.id, targetId]),
+  ]);
+  res.json({
+    id: row.id,
+    amanaId: row.amanaid,
+    username: row.username,
+    bio: row.bio,
+    gender: row.gender,
+    country: row.country,
+    createdAt: row.createdat,
+    agencyId: row.agencyid,
+    isHostBadge: row.ishostbadge,
+    isDbBadge: row.isdbbadge,
+    prettyId: row.prettyid,
+    isSelf: targetId === req.user.id,
+    isFollowing: isFollowing.rows.length > 0,
+    stats: {
+      following: Number(following.rows[0].count),
+      fans: Number(fans.rows[0].count),
+      friends: Number(friends.rows[0].count),
+      coinsSent: Number(sentSum.rows[0].total),
+      coinsReceived: Number(receivedSum.rows[0].total),
+    },
+  });
+});
+
+// Search for people by username or AmanaID/Pretty ID ----------------------
+app.get("/api/users/search", requireAuth, async (req, res) => {
+  const q = (req.query.q || "").trim();
+  if (!q) return res.json({ users: [] });
+  const result = await query(
+    `SELECT id, amanaId, username, prettyId FROM Users
+     WHERE username ILIKE $1 OR amanaId ILIKE $1 OR prettyId ILIKE $1
+     LIMIT 20`,
+    [`%${q}%`]
+  );
+  res.json({
+    users: result.rows.map((r) => ({ id: r.id, amanaId: r.amanaid, username: r.username, prettyId: r.prettyid })),
+  });
+});
+
 app.get("/api/follow/stories", requireAuth, async (req, res) => {
   const result = await query(
     `SELECT u.id, u.username, u.avatar, f.pinned,
