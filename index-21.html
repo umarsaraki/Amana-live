@@ -1,0 +1,2141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Amana Live</title>
+<style>
+/* ============================================================
+   Amana Live - plain CSS, no build step, no framework.
+   Light theme for the main app, dark "night scene" for the
+   Go-Live setup + Audio Live room.
+   ============================================================ */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background: #FFFFFF;
+  color: #000000;
+  -webkit-font-smoothing: antialiased;
+}
+a { color: inherit; text-decoration: none; }
+button { font-family: inherit; }
+.hidden { display: none !important; }
+.wrap { max-width: 480px; margin: 0 auto; padding-bottom: 96px; }
+
+/* ---- Top bar ---- */
+.topbar { display: flex; align-items: center; justify-content: space-between; padding: 16px 16px 8px; }
+.toptabs { display: flex; gap: 20px; }
+.toptab { background: none; border: none; font-size: 16px; font-weight: 600; color: #9CA3AF; cursor: pointer; padding: 0; }
+.toptab.active { color: #000; }
+.topicons { display: flex; gap: 8px; align-items: center; }
+.icon-btn { display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 999px; background: #F2F2F2; border: none; cursor: pointer; }
+.icon-btn:hover { background: #E5E7EB; }
+
+/* ---- Lang menu ---- */
+.lang-menu-wrap { position: relative; }
+.lang-menu { display: none; position: absolute; right: 0; margin-top: 8px; width: 140px; border-radius: 14px; background: #fff; border: 1px solid #E5E7EB; box-shadow: 0 8px 20px rgba(0,0,0,0.1); overflow: hidden; z-index: 50; }
+.lang-menu.open { display: block; }
+.lang-option { display: block; width: 100%; text-align: left; padding: 10px 16px; font-size: 14px; background: none; border: none; cursor: pointer; color: #000; }
+.lang-option:hover { background: #F2F2F2; }
+.lang-option.active { background: rgba(59,130,246,0.1); color: #3B82F6; font-weight: 600; }
+
+/* ---- Banner slider ---- */
+.banner-slider { position: relative; margin: 0 16px 16px; height: 92px; border-radius: 16px; overflow: hidden; }
+.banner-slide { display: none; position: absolute; inset: 0; padding: 14px 16px; color: #fff; cursor: pointer; flex-direction: column; justify-content: center; gap: 3px; border: none; text-align: left; width: 100%; }
+.banner-slide.active { display: flex; }
+.banner-tasks { background: linear-gradient(120deg, #3B82F6, #60A5FA); }
+.banner-referral { background: linear-gradient(120deg, #A855F7, #EC4899); }
+.banner-leaderboard { background: linear-gradient(120deg, #1E3A8A, #3B82F6); }
+.banner-title { font-size: 15px; font-weight: 700; }
+.banner-sub { font-size: 12px; opacity: 0.9; }
+.banner-dots { position: absolute; bottom: 8px; right: 12px; display: flex; gap: 5px; }
+.banner-dot { width: 6px; height: 6px; border-radius: 999px; background: rgba(255,255,255,0.5); }
+.banner-dot.active { background: #fff; width: 16px; border-radius: 4px; }
+
+/* ---- Top 3 buttons ---- */
+.top3-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; padding: 0 16px 20px; }
+.top3-btn { border-radius: 18px; padding: 12px 10px; color: #fff; text-align: left; cursor: pointer; border: none; display: flex; flex-direction: column; gap: 6px; min-height: 92px; }
+.top3-agency { background: #FF8C00; }
+.top3-giftwall { background: #A855F7; }
+.top3-roomwall { background: #1E3A8A; }
+.top3-label { font-size: 12px; font-weight: 700; }
+.mini-avatars { display: flex; }
+.mini-avatar { width: 24px; height: 24px; border-radius: 999px; background: rgba(255,255,255,0.3); border: 2px solid rgba(255,255,255,0.6); display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; margin-left: -8px; }
+.mini-avatar:first-child { margin-left: 0; }
+.top3-big-emoji { font-size: 22px; }
+.top3-sub { font-size: 10px; opacity: 0.85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ---- Search + filter tags ---- */
+.search-wrap { padding: 0 16px 12px; }
+.search-input { width: 100%; border-radius: 999px; background: #F2F2F2; border: none; padding: 10px 16px; font-size: 14px; color: #000; }
+.search-input::placeholder { color: #9CA3AF; }
+.cat-tabs { display: flex; gap: 8px; padding: 0 16px 16px; overflow-x: auto; }
+.cat-tab { white-space: nowrap; font-size: 14px; font-weight: 500; padding: 7px 16px; border-radius: 999px; border: none; cursor: pointer; background: #F2F2F2; color: #4B5563; }
+.cat-tab.active { background: #3B82F6; color: #fff; }
+
+/* ---- Live list ---- */
+.live-section { padding: 0 16px; }
+.live-title { font-size: 14px; font-weight: 600; color: #6B7280; margin-bottom: 8px; }
+.live-item { display: flex; align-items: center; gap: 12px; background: #F9FAFB; border: 1px solid #F3F4F6; border-radius: 18px; padding: 10px 12px; margin-bottom: 8px; cursor: pointer; width: 100%; text-align: left; }
+.live-item:hover { border-color: rgba(59,130,246,0.4); }
+.avatar-wrap { position: relative; width: 48px; height: 48px; flex-shrink: 0; }
+.avatar { width: 48px; height: 48px; border-radius: 999px; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: 18px; background: linear-gradient(135deg, #3B82F6, #C084FC); }
+.live-badge { position: absolute; bottom: -2px; right: -2px; background: #EF4444; color: #fff; font-size: 8px; font-weight: 700; padding: 1px 4px; border-radius: 999px; border: 2px solid #F9FAFB; }
+.live-info { flex: 1; min-width: 0; }
+.live-item-title { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.live-meta { display: flex; align-items: center; gap: 6px; margin-top: 2px; flex-wrap: wrap; }
+.live-host { font-size: 12px; color: #6B7280; }
+.live-agency { font-size: 11px; color: #9CA3AF; }
+.live-tag { font-size: 10px; font-weight: 500; background: rgba(59,130,246,0.1); color: #3B82F6; padding: 2px 6px; border-radius: 999px; }
+.viewer-count { font-size: 12px; font-weight: 600; color: #6B7280; flex-shrink: 0; }
+.empty-state { text-align: center; color: #9CA3AF; font-size: 13px; padding: 24px 0; }
+
+/* ---- Follow tab ---- */
+.stories-row { display: flex; gap: 12px; padding: 4px 16px 20px; overflow-x: auto; }
+.story { flex-shrink: 0; display: flex; flex-direction: column; align-items: center; gap: 4px; width: 56px; cursor: pointer; -webkit-user-select: none; user-select: none; }
+.story-ring { width: 52px; height: 52px; border-radius: 999px; padding: 2px; border: 2px solid #E5E7EB; }
+.story-ring.live { border-color: #EF4444; }
+.story-avatar { width: 100%; height: 100%; border-radius: 999px; background: linear-gradient(135deg,#3B82F6,#C084FC); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 16px; }
+.story-name { font-size: 10px; color: #4B5563; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 56px; }
+.follow-section { padding: 0 16px 20px; }
+.follow-section-title { font-size: 14px; font-weight: 700; margin-bottom: 8px; }
+.follow-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.follow-card { background: #F9FAFB; border: 1px solid #F3F4F6; border-radius: 16px; padding: 10px; cursor: pointer; text-align: left; width: 100%; }
+.follow-card-top { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.follow-card-avatar { width: 32px; height: 32px; border-radius: 999px; background: linear-gradient(135deg,#3B82F6,#A855F7); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; flex-shrink: 0; }
+.follow-card-title { font-size: 12px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.follow-card-sub { font-size: 10px; color: #9CA3AF; }
+.follow-card-status { font-size: 10px; font-weight: 700; color: #EF4444; }
+
+.toast { position: fixed; left: 50%; bottom: 100px; transform: translateX(-50%); background: #111827; color: #fff; font-size: 12px; padding: 8px 16px; border-radius: 999px; z-index: 60; display: none; }
+.toast.show { display: block; }
+
+/* ---- Floating Go Live button ---- */
+.fab-golive { position: fixed; z-index: 40; bottom: 80px; right: 16px; display: flex; align-items: center; gap: 8px; border-radius: 999px; padding: 12px 18px 12px 14px; color: #fff; font-weight: 600; font-size: 14px; background: linear-gradient(90deg, #3B82F6, #EF4444); border: none; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+
+/* ---- Bottom nav ---- */
+.bottomnav { position: fixed; bottom: 0; left: 0; right: 0; z-index: 40; background: #fff; border-top: 1px solid #F3F4F6; box-shadow: 0 -2px 10px rgba(0,0,0,0.04); }
+.bottomnav-inner { max-width: 480px; margin: 0 auto; display: grid; grid-template-columns: repeat(5, 1fr); }
+.nav-item { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; padding: 10px 0; font-size: 11px; font-weight: 500; background: none; border: none; cursor: pointer; color: #9CA3AF; }
+.nav-item svg { width: 22px; height: 22px; }
+.nav-item.active { color: #3B82F6; }
+
+/* ---- Auth screens ---- */
+.auth-wrap { max-width: 360px; margin: 40px auto; padding: 0 20px; }
+.auth-title { font-size: 22px; font-weight: 700; margin-bottom: 20px; }
+.field { width: 100%; border-radius: 12px; background: #F9FAFB; border: 1px solid #E5E7EB; padding: 11px 16px; font-size: 14px; margin-bottom: 12px; }
+.field::placeholder { color: #9CA3AF; }
+.btn-primary { width: 100%; border-radius: 12px; background: #3B82F6; color: #fff; border: none; padding: 12px; font-weight: 700; font-size: 15px; cursor: pointer; }
+.btn-primary:disabled { opacity: 0.5; }
+.btn-text { width: 100%; text-align: center; background: none; border: none; color: #9CA3AF; font-size: 13px; padding: 10px; cursor: pointer; }
+.auth-switch { margin-top: 14px; font-size: 13px; color: #6B7280; text-align: center; }
+.auth-switch button { color: #3B82F6; font-weight: 600; background: none; border: none; cursor: pointer; }
+.error-text { color: #EF4444; font-size: 13px; margin-bottom: 10px; }
+.otp-note { font-size: 12px; background: #FFFBEB; border: 1px solid #FDE68A; color: #92400E; border-radius: 10px; padding: 8px 12px; margin-bottom: 12px; }
+
+/* ---- Generic page header (Wallet / Referral / Tasks / Profile) ---- */
+.page-header { display: flex; align-items: center; gap: 8px; padding: 16px 16px 8px; max-width: 480px; margin: 0 auto; }
+.page-header button { background: none; border: none; cursor: pointer; display: flex; }
+.page-title { font-size: 17px; font-weight: 700; }
+.page-body { max-width: 480px; margin: 0 auto; padding: 8px 16px 96px; }
+
+/* ---- Wallet ---- */
+.balance-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
+.balance-card { border-radius: 16px; padding: 16px; text-align: center; }
+.balance-coin { background: #FFFBEB; border: 1px solid #FDE68A; }
+.balance-diamond { background: #ECFEFF; border: 1px solid #A5F3FC; }
+.balance-value { font-size: 22px; font-weight: 700; }
+.balance-label { font-size: 11px; color: #6B7280; margin-top: 2px; }
+.pkg-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 20px; }
+.pkg-btn { border-radius: 12px; background: #F9FAFB; border: 1px solid #F3F4F6; padding: 12px 4px; font-size: 13px; font-weight: 600; cursor: pointer; }
+.tx-row { display: flex; align-items: center; justify-content: between; justify-content: space-between; font-size: 13px; background: #F9FAFB; border: 1px solid #F3F4F6; border-radius: 12px; padding: 8px 12px; margin-bottom: 6px; }
+.tx-amount-pos { color: #16A34A; font-weight: 600; }
+.tx-amount-neg { color: #EF4444; font-weight: 600; }
+
+/* ---- Referral ---- */
+.referral-card { border-radius: 16px; padding: 20px; margin-bottom: 20px; color: #fff; background: linear-gradient(135deg,#3B82F6,#A855F7); }
+.referral-link-row { display: flex; gap: 8px; margin-top: 6px; }
+.referral-link-row input { flex: 1; font-size: 11px; background: rgba(0,0,0,0.2); border: none; border-radius: 8px; padding: 6px 10px; color: #fff; }
+.referral-link-row button { font-size: 11px; background: rgba(255,255,255,0.2); border: none; border-radius: 8px; padding: 6px 10px; color: #fff; font-weight: 600; cursor: pointer; }
+.stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
+.stat-card { background: #F9FAFB; border: 1px solid #F3F4F6; border-radius: 16px; padding: 16px; text-align: center; }
+
+/* ---- Tasks ---- */
+.task-card { border-radius: 16px; padding: 14px; border: 1px solid #F3F4F6; background: #F9FAFB; display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.task-card.completed { background: #F0FDF4; border-color: #BBF7D0; }
+.task-card.locked { opacity: 0.5; }
+.task-day { font-size: 11px; color: #6B7280; }
+.task-title { font-size: 13px; font-weight: 600; }
+.task-reward { font-size: 11px; color: #F59E0B; margin-top: 2px; }
+.task-btn { font-size: 11px; background: #3B82F6; color: #fff; border: none; border-radius: 999px; padding: 6px 12px; font-weight: 600; cursor: pointer; }
+
+/* ---- Profile: Header ---- */
+.profile-banner { margin: -8px -16px 0; padding: 22px 16px 16px; background: linear-gradient(135deg,#3B82F6 0%,#6366F1 50%,#A855F7 100%); border-radius: 0 0 24px 24px; color: #fff; position: relative; }
+.profile-top { display: flex; align-items: center; gap: 12px; }
+.profile-avatar-ring { width: 60px; height: 60px; border-radius: 999px; padding: 2px; background: rgba(255,255,255,0.6); flex-shrink: 0; }
+.profile-avatar { width: 100%; height: 100%; border-radius: 999px; background: rgba(255,255,255,0.25); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 21px; font-weight: 700; }
+.profile-name-row { display: flex; align-items: center; gap: 6px; font-weight: 700; font-size: 15px; }
+.gender-chip { font-size: 10px; border-radius: 999px; padding: 1px 7px; font-weight: 700; display: inline-flex; align-items: center; gap: 2px; cursor: pointer; border: none; }
+.gender-chip.male { background: rgba(255,255,255,0.9); color: #2563EB; }
+.gender-chip.female { background: rgba(255,255,255,0.9); color: #DB2777; }
+.gender-chip.unset { background: rgba(255,255,255,0.25); color: #fff; }
+.gender-chip.locked { cursor: default; opacity: 0.9; }
+.profile-id-row { font-size: 12px; color: rgba(255,255,255,0.85); margin-top: 1px; }
+.profile-id-row.pretty { color: #FDE68A; font-weight: 700; }
+.profile-badges { display: flex; gap: 5px; margin-top: 5px; flex-wrap: wrap; }
+.profile-badge { font-size: 9px; font-weight: 700; border-radius: 999px; padding: 2px 7px; background: rgba(255,255,255,0.22); color: #fff; }
+.profile-levels { display: flex; gap: 6px; margin-top: 6px; }
+.level-chip { font-size: 10px; font-weight: 700; border-radius: 999px; padding: 2px 8px; background: rgba(255,255,255,0.22); color: #fff; }
+.profile-chevron { position: absolute; top: 20px; right: 14px; background: rgba(255,255,255,0.22); border: none; border-radius: 999px; width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; color: #fff; cursor: pointer; }
+
+/* ---- Profile: Stats row ---- */
+.profile-stats-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; margin: 14px 0 16px; }
+.profile-stat { text-align: center; }
+.profile-stat-value { font-size: 15px; font-weight: 800; color: #fff; }
+.profile-stat-label { font-size: 9.5px; color: rgba(255,255,255,0.85); margin-top: 2px; font-weight: 600; }
+
+/* ---- Profile: Grid menu (3 columns) ---- */
+.profile-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 16px; }
+.profile-grid-item { display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 10px 2px; background: #F9FAFB; border: 1px solid #F3F4F6; border-radius: 14px; cursor: pointer; }
+.icon-badge { width: 34px; height: 34px; border-radius: 10px; display: flex; align-items: center; justify-content: center; color: #fff; }
+.icon-badge svg { width: 18px; height: 18px; }
+.profile-grid-label { font-size: 10.5px; color: #374151; font-weight: 600; text-align: center; }
+
+.menu-list { border: 1px solid #F3F4F6; border-radius: 14px; overflow: hidden; margin-bottom: 16px; }
+.menu-link { display: flex; align-items: center; gap: 12px; padding: 15px 16px; border-bottom: 1px solid #F9FAFB; cursor: pointer; background: none; width: 100%; text-align: left; border-left: none; border-right: none; border-top: none; font-size: 15px; font-weight: 600; color: #111827; }
+.menu-link:last-child { border-bottom: none; }
+.menu-link .icon-badge { width: 34px; height: 34px; border-radius: 10px; }
+.menu-link .icon-badge svg { width: 18px; height: 18px; }
+.menu-link-arrow { margin-left: auto; color: #D1D5DB; font-size: 18px; }
+.info-row { display: flex; align-items: center; justify-content: space-between; background: #F9FAFB; border: 1px solid #F3F4F6; border-radius: 12px; padding: 10px 14px; font-size: 13px; margin-bottom: 8px; }
+.info-label { color: #6B7280; }
+.logout-btn { width: 100%; margin-top: 16px; border-radius: 12px; border: 1px solid #FECACA; color: #EF4444; background: none; padding: 12px; font-weight: 600; cursor: pointer; }
+
+/* ---- Edit Profile screen ---- */
+.editprofile-avatar-wrap { display: flex; justify-content: center; padding: 8px 0 18px; }
+.editprofile-avatar-big { width: 84px; height: 84px; border-radius: 999px; background: linear-gradient(135deg,#3B82F6,#A855F7); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 30px; font-weight: 700; position: relative; }
+.editprofile-avatar-edit { position: absolute; bottom: -2px; right: -2px; width: 26px; height: 26px; border-radius: 999px; background: #3B82F6; border: 2px solid #fff; display: flex; align-items: center; justify-content: center; color: #fff; cursor: pointer; }
+.profile-bgstrip { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; margin-bottom: 16px; }
+.profile-bg-slot { flex-shrink: 0; width: 56px; height: 78px; border-radius: 10px; background: #F3F4F6; border: 1px dashed #D1D5DB; display: flex; align-items: center; justify-content: center; color: #9CA3AF; font-size: 18px; cursor: pointer; }
+
+/* ---- Profile sub-pages (shared look) ---- */
+.subpage-tabs { display: flex; gap: 8px; margin-bottom: 14px; }
+.subpage-tab { flex: 1; text-align: center; font-size: 13px; font-weight: 600; padding: 8px; border-radius: 10px; background: #F2F2F2; color: #6B7280; border: none; cursor: pointer; }
+.subpage-tab.active { background: #3B82F6; color: #fff; }
+.subpage-row { display: flex; align-items: center; justify-content: space-between; background: #F9FAFB; border: 1px solid #F3F4F6; border-radius: 12px; padding: 12px 14px; margin-bottom: 8px; font-size: 13px; }
+.subpage-note { font-size: 12px; color: #6B7280; background: #F9FAFB; border-radius: 12px; padding: 10px 12px; margin-bottom: 14px; }
+.subpage-input { width: 100%; border: 1px solid #E5E7EB; border-radius: 12px; padding: 12px 14px; font-size: 14px; margin-bottom: 10px; }
+.subpage-btn { width: 100%; background: #3B82F6; color: #fff; border: none; border-radius: 12px; padding: 13px; font-weight: 700; font-size: 14px; cursor: pointer; }
+.subpage-btn.danger { background: #EF4444; }
+.subpage-btn.secondary { background: #F2F2F2; color: #111827; }
+.level-progress-track { height: 8px; border-radius: 999px; background: #F2F2F2; overflow: hidden; margin-top: 6px; }
+.level-progress-fill { height: 100%; border-radius: 999px; background: #3B82F6; }
+.vip-tier-card { display: flex; align-items: center; justify-content: space-between; background: #F9FAFB; border: 1px solid #F3F4F6; border-radius: 12px; padding: 12px 14px; margin-bottom: 8px; }
+
+/* ---- Live Record (styled like reference) ---- */
+.lr-banner { margin: -8px -16px 0; padding: 16px; background: linear-gradient(160deg,#2563EB 0%,#1D4ED8 60%,#1E3A8A 100%); border-radius: 0 0 20px 20px; color: #fff; }
+.lr-banner-top { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.lr-back { background: none; border: none; color: #fff; font-size: 20px; cursor: pointer; }
+.lr-banner-title { font-weight: 700; font-size: 16px; }
+.lr-period-row { display: flex; gap: 8px; margin-bottom: 14px; }
+.lr-period-chip { background: rgba(255,255,255,0.18); border-radius: 999px; padding: 6px 12px; font-size: 12px; font-weight: 600; }
+.lr-total-card { background: rgba(255,255,255,0.14); border-radius: 16px; padding: 16px; }
+.lr-total-head { display: flex; align-items: center; gap: 6px; font-weight: 700; font-size: 13px; margin-bottom: 12px; }
+.lr-total-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+.lr-total-label { font-size: 11px; color: rgba(255,255,255,0.8); margin-bottom: 4px; }
+.lr-total-value { font-size: 20px; font-weight: 800; display: flex; align-items: center; gap: 5px; }
+.lr-usd { font-size: 11px; color: rgba(255,255,255,0.75); }
+.lr-subbar { background: rgba(255,255,255,0.12); border-radius: 10px; padding: 9px 12px; font-size: 12px; font-weight: 600; margin-bottom: 8px; }
+.lr-subgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.lr-subgrid .lr-subbar { text-align: center; margin-bottom: 0; }
+.lr-details-head { display: flex; align-items: center; justify-content: space-between; padding: 16px 0 10px; font-weight: 700; font-size: 15px; }
+.lr-table-wrap { overflow-x: auto; }
+.lr-table { width: 100%; border-collapse: collapse; font-size: 11.5px; min-width: 480px; }
+.lr-table th { text-align: center; color: #6B7280; font-weight: 600; padding: 6px 4px; border-bottom: 1px solid #F3F4F6; }
+.lr-table td { text-align: center; padding: 8px 4px; border-bottom: 1px solid #F9FAFB; }
+.lr-note { font-size: 11.5px; color: #6B7280; line-height: 1.6; padding: 14px 2px 20px; }
+.lr-note b { color: #2563EB; }
+
+/* ---- View Profile (public-style card, what visitors see) ---- */
+.pv-banner { position: relative; margin: -8px -16px 0; padding: 18px 16px 60px; background: linear-gradient(160deg,#1E293B 0%,#334155 50%,#0F172A 100%); border-radius: 0 0 28px 28px; }
+.pv-top-row { display: flex; align-items: center; justify-content: space-between; }
+.pv-back, .pv-edit-btn { background: rgba(255,255,255,0.16); border: none; color: #fff; width: 30px; height: 30px; border-radius: 999px; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+.pv-card { background: #fff; border-radius: 20px; margin: -50px 2px 16px; padding: 46px 16px 16px; text-align: center; position: relative; box-shadow: 0 6px 20px rgba(0,0,0,0.08); }
+.pv-avatar { position: absolute; top: -38px; left: 50%; transform: translateX(-50%); width: 76px; height: 76px; border-radius: 999px; border: 4px solid #fff; background: linear-gradient(135deg,#3B82F6,#A855F7); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 28px; font-weight: 700; }
+.pv-name { font-weight: 800; font-size: 16px; }
+.pv-badges-row { display: flex; justify-content: center; gap: 6px; margin: 6px 0; flex-wrap: wrap; }
+.pv-id-row { font-size: 12px; color: #6B7280; }
+.pv-stats-row { display: flex; justify-content: center; gap: 18px; margin: 12px 0 2px; }
+.pv-stat-value { font-weight: 800; font-size: 14px; }
+.pv-stat-label { font-size: 10px; color: #6B7280; }
+.pv-tabs { display: flex; justify-content: center; gap: 20px; border-bottom: 1px solid #F3F4F6; margin-top: 10px; }
+.pv-tab { padding: 8px 2px; font-size: 12.5px; font-weight: 600; color: #9CA3AF; cursor: pointer; }
+.pv-tab.active { color: #111827; border-bottom: 2px solid #3B82F6; }
+.pv-field-row { display: flex; align-items: center; justify-content: space-between; padding: 12px 4px; border-bottom: 1px solid #F9FAFB; font-size: 13px; }
+.pv-field-label { color: #9CA3AF; }
+
+/* ============================================================
+   LEADERBOARD OVERLAY
+   ============================================================ */
+.lb-overlay { display: none; position: fixed; inset: 0; z-index: 55; background: #fff; }
+.lb-overlay.open { display: block; }
+.lb-inner { max-width: 480px; margin: 0 auto; height: 100%; display: flex; flex-direction: column; overflow-y: auto; }
+.lb-header { display: flex; align-items: center; gap: 10px; padding: 16px; border-bottom: 1px solid #F3F4F6; }
+.lb-back { background: none; border: none; cursor: pointer; color: #000; }
+.lb-title { font-size: 17px; font-weight: 700; }
+.lb-period-tabs { display: flex; gap: 8px; padding: 12px 16px 4px; }
+.lb-period-tab { flex: 1; text-align: center; font-size: 13px; font-weight: 600; padding: 8px; border-radius: 10px; background: #F2F2F2; color: #6B7280; border: none; cursor: pointer; text-transform: capitalize; }
+.lb-period-tab.active { background: #3B82F6; color: #fff; }
+.lb-reset-note { font-size: 10px; color: #9CA3AF; text-align: center; padding: 6px 16px 0; }
+.lb-podium { display: flex; align-items: flex-end; justify-content: center; gap: 14px; padding: 20px 16px 10px; }
+.lb-podium-item { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.lb-podium-avatar { border-radius: 999px; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; background: linear-gradient(135deg,#3B82F6,#A855F7); }
+.lb-podium-item.rank1 .lb-podium-avatar { width: 64px; height: 64px; font-size: 22px; border: 3px solid #FBBF24; }
+.lb-podium-item.rank2 .lb-podium-avatar, .lb-podium-item.rank3 .lb-podium-avatar { width: 52px; height: 52px; font-size: 18px; }
+.lb-podium-item.rank2 .lb-podium-avatar { border: 3px solid #9CA3AF; }
+.lb-podium-item.rank3 .lb-podium-avatar { border: 3px solid #B45309; }
+.lb-podium-name { font-size: 11px; font-weight: 700; max-width: 70px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lb-podium-value { font-size: 10px; color: #F59E0B; font-weight: 700; }
+.lb-list { padding: 8px 16px; }
+.lb-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid #F9FAFB; }
+.lb-rank { width: 22px; font-size: 12px; font-weight: 700; color: #9CA3AF; text-align: center; }
+.lb-row-avatar { width: 34px; height: 34px; border-radius: 999px; background: linear-gradient(135deg,#60A5FA,#C084FC); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; flex-shrink: 0; }
+.lb-row-name { flex: 1; font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lb-row-value { font-size: 12px; font-weight: 700; color: #F59E0B; }
+.lb-prize { margin: 16px; background: #FFFBEB; border: 1px solid #FDE68A; color: #92400E; font-size: 12px; padding: 10px 12px; border-radius: 12px; text-align: center; font-weight: 600; }
+
+/* ============================================================
+   NIGHT-SCENE (Go Live setup + Audio Live room)
+   ============================================================ */
+.night-scene {
+  position: absolute; inset: 0; z-index: 0; overflow: hidden;
+  background:
+    radial-gradient(1px 1px at 10% 15%, #fff 100%, transparent 100%),
+    radial-gradient(1px 1px at 25% 8%, #fff 100%, transparent 100%),
+    radial-gradient(1.5px 1.5px at 40% 20%, #fff 100%, transparent 100%),
+    radial-gradient(1px 1px at 60% 5%, #fff 100%, transparent 100%),
+    radial-gradient(1px 1px at 75% 18%, #fff 100%, transparent 100%),
+    radial-gradient(1.5px 1.5px at 90% 10%, #fff 100%, transparent 100%),
+    linear-gradient(180deg, #0B1740 0%, #14245C 35%, #1E3A8A 60%, #16306B 80%, #0B1740 100%);
+}
+.stage-overlay { display: none; position: fixed; inset: 0; z-index: 55; background: #0B1740; overflow: hidden; }
+.stage-overlay.open { display: block; }
+.stage-screen { display: none; position: absolute; inset: 0; }
+.stage-screen.active { display: block; }
+.stage-inner { position: relative; z-index: 1; height: 100%; display: flex; flex-direction: column; max-width: 480px; margin: 0 auto; color: #fff; }
+
+.setup-close { position: absolute; top: 16px; right: 16px; z-index: 2; background: none; border: none; color: #fff; cursor: pointer; }
+.setup-card { margin: 56px 16px 0; background: rgba(0,0,0,0.35); border-radius: 16px; padding: 12px; display: flex; align-items: center; gap: 12px; }
+.setup-cover-wrap { width: 64px; height: 64px; border-radius: 12px; background: linear-gradient(160deg,#3B82F6,#1E3A8A); flex-shrink: 0; }
+.setup-id { font-size: 22px; font-weight: 700; }
+.setup-bottom { padding: 20px 16px 28px; margin-top: auto; }
+.setup-golive-btn { width: 100%; background: #3B82F6; color: #fff; border: none; border-radius: 999px; padding: 16px; font-size: 17px; font-weight: 700; cursor: pointer; }
+.setup-note { text-align: center; font-size: 12px; color: rgba(255,255,255,0.6); margin-top: 12px; }
+
+.room-topbar { display: flex; align-items: center; justify-content: space-between; padding: 12px 12px 0; }
+.room-id-chip { display: flex; align-items: center; gap: 8px; background: rgba(0,0,0,0.3); border-radius: 999px; padding: 4px 10px 4px 4px; }
+.room-id-thumb { width: 30px; height: 30px; border-radius: 8px; background: linear-gradient(160deg,#3B82F6,#1E3A8A); }
+.room-id-text { font-size: 12px; font-weight: 700; }
+.room-viewer-count { font-size: 11px; font-weight: 700; background: rgba(0,0,0,0.3); border-radius: 999px; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; }
+.room-icon-btn { width: 30px; height: 30px; border-radius: 999px; background: rgba(0,0,0,0.3); border: none; color: #fff; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+
+.host-seat { position: absolute; top: 70px; left: 50%; transform: translateX(-50%); text-align: center; }
+.host-avatar { width: 68px; height: 68px; border-radius: 999px; background: linear-gradient(135deg,#3B82F6,#C084FC); display: flex; align-items: center; justify-content: center; font-size: 26px; font-weight: 700; border: 2px solid rgba(255,255,255,0.5); margin: 0 auto; }
+.host-name { font-size: 12px; font-weight: 700; margin-top: 4px; }
+
+.guest-seat { position: absolute; text-align: center; cursor: pointer; }
+.guest-seat-1 { top: 128px; left: 10%; }
+.guest-seat-2 { top: 158px; left: 33%; }
+.guest-seat-3 { top: 158px; right: 33%; }
+.guest-seat-4 { top: 128px; right: 10%; }
+.guest-ring { width: 48px; height: 48px; border-radius: 999px; background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.2); display: flex; align-items: center; justify-content: center; font-size: 18px; }
+.guest-ring.filled { background: linear-gradient(135deg,#60A5FA,#A855F7); border-color: transparent; font-weight: 700; }
+.guest-num { font-size: 9px; color: rgba(255,255,255,0.5); margin-top: 2px; }
+
+.room-content { position: absolute; top: 216px; left: 0; right: 0; bottom: 64px; display: flex; flex-direction: column; padding: 0 12px; }
+.room-feed { flex: 1; overflow-y: auto; font-size: 12px; line-height: 1.6; }
+.room-feed p { margin-bottom: 6px; }
+.room-feed-join { color: rgba(255,255,255,0.9); }
+.room-feed-gift { color: #FDE68A; font-weight: 600; }
+
+.room-bottombar { position: absolute; left: 0; right: 0; bottom: 0; display: flex; align-items: center; gap: 6px; padding: 8px 10px; background: rgba(0,0,0,0.35); }
+.room-hi-input { flex: 1; background: rgba(255,255,255,0.15); border: none; border-radius: 999px; padding: 8px 12px; color: #fff; font-size: 12px; }
+.room-hi-input::placeholder { color: rgba(255,255,255,0.6); }
+.room-bottom-btn { width: 34px; height: 34px; border-radius: 999px; background: rgba(255,255,255,0.15); border: none; color: #fff; display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; }
+.room-bottom-btn.mic-off { background: #EF4444; }
+
+.popover { display: none; position: absolute; bottom: 56px; left: 10px; right: 10px; background: #111827; border-radius: 14px; padding: 10px; z-index: 5; }
+.popover.open { display: block; }
+.gift-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.gift-item { background: rgba(255,255,255,0.08); border: none; border-radius: 10px; padding: 10px 4px; color: #fff; cursor: pointer; text-align: center; }
+.gift-emoji { font-size: 22px; display: block; }
+.gift-name { font-size: 10px; display: block; margin-top: 2px; }
+.gift-cost { font-size: 9px; color: #FBBF24; display: block; }
+
+</style>
+</head>
+<body>
+
+<!-- Shown immediately, before anything else. Cleared once init() succeeds.
+     If the server/API can't be reached (e.g. this file was opened directly
+     from the file system instead of through the running Node server), this
+     turns into a visible error instead of leaving a silent blank page. -->
+<div id="boot-status" style="max-width:420px;margin:80px auto;padding:0 24px;text-align:center;font-size:14px;color:#6B7280;">
+  <div id="boot-loading">Connecting to Amana Live…</div>
+  <div id="boot-error" class="hidden" style="color:#EF4444;font-weight:600;line-height:1.6;">
+    Could not reach the server.<br/><br/>
+    This page only works when it's served by the running Node server (with
+    a connected PostgreSQL database) — opening this HTML file directly
+    won't work.<br/><br/>
+    Run <code>npm start</code> locally, or open your deployed URL (e.g. on Render),
+    not this file directly.
+  </div>
+</div>
+
+<!-- ============================================================
+     HOME (Live / Follow tabs) - Home Page System v3.0
+     ============================================================ -->
+<div id="screen-home" class="hidden wrap">
+  <div class="topbar">
+    <div class="toptabs">
+      <button id="hometab-follow" class="toptab" onclick="setHomeTab('follow')">Follow</button>
+      <button id="hometab-live" class="toptab active" onclick="setHomeTab('live')">Live</button>
+    </div>
+    <div class="topicons">
+      <button class="icon-btn" title="Search">🔍</button>
+      <div class="lang-menu-wrap">
+        <button class="icon-btn" onclick="toggleLangMenu()">🌐</button>
+        <div class="lang-menu" id="lang-menu">
+          <button class="lang-option active" onclick="setLanguage('en')">English</button>
+          <button class="lang-option" onclick="setLanguage('ha')">Hausa</button>
+          <button class="lang-option" onclick="setLanguage('ar')">Arabic</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- LIVE TAB -->
+  <div id="hometab-content-live">
+    <div class="banner-slider" id="banner-slider">
+      <button class="banner-slide banner-tasks active" onclick="onBannerClick('tasks')">
+        <span class="banner-title">7-Day Tasks</span>
+        <span class="banner-sub">Complete daily tasks and win coins</span>
+      </button>
+      <button class="banner-slide banner-referral" onclick="onBannerClick('referral')">
+        <span class="banner-title">Invite Friends</span>
+        <span class="banner-sub">Share your AmanaID and earn coins</span>
+      </button>
+      <button class="banner-slide banner-leaderboard" onclick="onBannerClick('leaderboard')">
+        <span class="banner-title">This Week's Top Host</span>
+        <span class="banner-sub">Tap to see the full leaderboard</span>
+      </button>
+      <div class="banner-dots" id="banner-dots"></div>
+    </div>
+
+    <div class="top3-row">
+      <button class="top3-btn top3-agency" onclick="openLeaderboard('agency')">
+        <span class="top3-label">Agency</span>
+        <div class="mini-avatars" id="top3-agency-avatars"></div>
+      </button>
+      <button class="top3-btn top3-giftwall" onclick="openLeaderboard('giftwall')">
+        <span class="top3-label">Gift Wall</span>
+        <span class="top3-big-emoji">🚀</span>
+        <span class="top3-sub" id="top3-giftwall-sub">No gifts yet today</span>
+      </button>
+      <button class="top3-btn top3-roomwall" onclick="openLeaderboard('roomwall')">
+        <span class="top3-label">Room Wall</span>
+        <span class="top3-sub" id="top3-roomwall-sub">No room yet</span>
+      </button>
+    </div>
+
+    <div class="search-wrap">
+      <input id="live-search" class="search-input" placeholder="Search hosts or titles" oninput="renderLiveList()" />
+    </div>
+
+    <div class="cat-tabs" id="category-tabs">
+      <button class="cat-tab active" data-filter="Stage" onclick="setCategory(this)">Stage</button>
+      <button class="cat-tab" data-filter="Video" onclick="setCategory(this)">Video</button>
+      <button class="cat-tab" data-filter="Party" onclick="setCategory(this)">Party</button>
+      <button class="cat-tab" data-filter="PK" onclick="setCategory(this)">PK</button>
+      <button class="cat-tab" data-filter="New" onclick="setCategory(this)">New</button>
+    </div>
+
+    <div class="live-section">
+      <div class="live-title">Live Now</div>
+      <div id="live-list"></div>
+    </div>
+  </div>
+
+  <!-- FOLLOW TAB -->
+  <div id="hometab-content-follow" class="hidden">
+    <div class="stories-row" id="stories-row"></div>
+    <div class="follow-section">
+      <div class="follow-section-title">Rooms You Manage</div>
+      <div class="follow-grid" id="admin-rooms-grid"></div>
+    </div>
+    <div class="follow-section">
+      <div class="follow-section-title">Followed Rooms</div>
+      <div class="follow-grid" id="followed-rooms-grid"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     WALLET / REFERRAL / TASKS / PROFILE
+     ============================================================ -->
+<div id="screen-wallet" class="hidden">
+  <div class="page-header"><button onclick="showScreen('screen-home')">←</button><span class="page-title">My Wallet</span></div>
+  <div class="page-body">
+    <div class="balance-grid">
+      <div class="balance-card balance-coin"><div class="balance-value" id="wallet-coins">-</div><div class="balance-label">Coins</div></div>
+      <div class="balance-card balance-diamond"><div class="balance-value" id="wallet-diamonds">-</div><div class="balance-label">Diamonds</div></div>
+    </div>
+    <div class="subpage-note">💱 1 USD = 100,000 Diamonds. Minimum withdrawal is 500,000 Diamonds (= $5). To withdraw, you must have a <b>bound phone number</b> and be a member of an <b>Agency</b>.</div>
+    <div class="follow-section-title">Buy Coins</div>
+    <div class="pkg-grid">
+      <button class="pkg-btn" onclick="buyCoins(100)">🪙100</button>
+      <button class="pkg-btn" onclick="buyCoins(500)">🪙500</button>
+      <button class="pkg-btn" onclick="buyCoins(1000)">🪙1000</button>
+      <button class="pkg-btn" onclick="buyCoins(5000)">🪙5000</button>
+    </div>
+    <button class="subpage-btn secondary" style="margin-bottom:20px;" onclick="requestWithdraw()">Withdraw Diamonds</button>
+    <div class="follow-section-title">Transaction History</div>
+    <div id="wallet-tx-list"></div>
+  </div>
+</div>
+
+<div id="screen-referral" class="hidden">
+  <div class="page-header"><button onclick="showScreen('screen-home')">←</button><span class="page-title">Invitation</span></div>
+  <div class="page-body">
+    <div class="referral-card">
+      <div style="font-size:12px;opacity:0.85;">Your Invitation Code</div>
+      <div style="font-size:24px;font-weight:800;" id="referral-amanaid">-</div>
+      <div style="font-size:12px;opacity:0.85;margin-top:10px;">Your invitation link</div>
+      <div class="referral-link-row">
+        <input id="referral-link" readonly />
+        <button onclick="copyReferralLink()">Copy</button>
+      </div>
+    </div>
+    <div class="subpage-note">🎁 Reward: when someone you invite completes their 7-Day Task, you earn <b>100,000 Diamonds (= $1)</b>.</div>
+    <div class="stat-grid">
+      <div class="stat-card"><div class="balance-value" id="referral-count">-</div><div class="balance-label">People invited</div></div>
+      <div class="stat-card"><div class="balance-value" id="referral-earned">-</div><div class="balance-label">Coins earned</div></div>
+    </div>
+    <div class="follow-section-title">Your invites</div>
+    <div id="referral-list"></div>
+  </div>
+</div>
+
+<div id="screen-tasks" class="hidden">
+  <div class="page-header"><button onclick="showScreen('screen-home')">←</button><span class="page-title">7-Day Tasks</span></div>
+  <div class="page-body" id="tasks-list"></div>
+</div>
+
+<div id="screen-profile" class="hidden">
+  <div class="page-body" style="padding-top:0;">
+    <div class="profile-banner">
+      <button class="profile-chevron" onclick="showScreen('screen-profile-view'); loadProfileView();" aria-label="View profile">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>
+      </button>
+      <div class="profile-top">
+        <div class="profile-avatar-ring"><div class="profile-avatar" id="profile-avatar-letter">-</div></div>
+        <div>
+          <div class="profile-name-row">
+            <span id="profile-username">-</span>
+            <button class="gender-chip unset" id="profile-gender-chip" onclick="openGenderPicker()">Set gender ›</button>
+          </div>
+          <div class="profile-id-row" id="profile-amanaid">-</div>
+          <div class="profile-badges" id="profile-badges"></div>
+          <div class="profile-levels" id="profile-levels"></div>
+        </div>
+      </div>
+      <div class="profile-stats-row" id="profile-stats-row"></div>
+    </div>
+
+    <div style="padding-top:16px;">
+    <div class="profile-grid" id="profile-grid"></div>
+
+    <div class="menu-list" id="profile-menu-list"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     VIEW PROFILE (public-style card - what a visitor sees; owner
+     gets an edit icon here too)
+     ============================================================ -->
+<div id="screen-profile-view" class="hidden">
+  <div class="page-body" style="padding-top:0;">
+    <div class="pv-banner">
+      <div class="pv-top-row">
+        <button class="pv-back" onclick="closeProfileView()">‹</button>
+        <div style="display:flex;gap:8px;">
+          <button class="pv-edit-btn" id="pv-search-btn" onclick="showScreen('screen-find-people')" aria-label="Find people">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+          </button>
+          <button class="pv-edit-btn" id="pv-edit-btn" onclick="showScreen('screen-profile-edit'); loadProfileEdit();" aria-label="Edit profile">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.1 2.1 0 0 1 3 3L12 15l-4 1 1-4Z"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+    <div class="pv-card">
+      <div class="pv-avatar" id="pv-avatar-letter">-</div>
+      <div class="pv-name" id="pv-username">-</div>
+      <div class="pv-badges-row" id="pv-badges"></div>
+      <div class="pv-id-row" id="pv-amanaid">-</div>
+      <div class="pv-stats-row" id="pv-stats-row"></div>
+      <button class="subpage-btn" id="pv-follow-btn" style="display:none;margin-top:12px;" onclick="toggleFollowPv()"></button>
+      <div class="pv-tabs">
+        <div class="pv-tab active">Personal</div>
+        <div class="pv-tab" onclick="showToast('Coming soon')">Moment</div>
+        <div class="pv-tab" onclick="showToast('Coming soon')">Gift</div>
+        <div class="pv-tab" onclick="showToast('Coming soon')">Relation</div>
+      </div>
+      <div style="text-align:left;">
+        <div class="pv-field-row"><span class="pv-field-label">ID</span><span id="pv-field-id">-</span></div>
+        <div class="pv-field-row"><span class="pv-field-label">Country</span><span id="pv-field-country">-</span></div>
+        <div class="pv-field-row"><span class="pv-field-label">Personal signature</span><span id="pv-field-bio">-</span></div>
+        <div class="pv-field-row" id="pv-dressup-row" onclick="showScreen('screen-dressup')" style="cursor:pointer;"><span class="pv-field-label">Current dressup</span><span>All ›</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     FIND PEOPLE (search by username / AmanaID / Pretty ID)
+     ============================================================ -->
+<div id="screen-find-people" class="hidden">
+  <div class="page-header"><button onclick="showScreen('screen-profile-view')">←</button><span class="page-title">Find People</span></div>
+  <div class="page-body">
+    <input class="subpage-input" id="find-people-input" placeholder="Search by username or ID" oninput="searchPeople()" />
+    <div id="find-people-results"></div>
+  </div>
+</div>
+
+<!-- ============================================================
+     EDIT PROFILE (avatar / background pictures / country / joined)
+     ============================================================ -->
+<div id="screen-profile-edit" class="hidden">
+  <div class="page-header"><button onclick="showScreen('screen-profile-view')">←</button><span class="page-title">Edit Profile</span></div>
+  <div class="page-body">
+    <div class="editprofile-avatar-wrap">
+      <div class="editprofile-avatar-big" id="editprofile-avatar-letter">
+        -
+        <div class="editprofile-avatar-edit" onclick="showToast('Photo upload is coming soon')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2Z"/><circle cx="12" cy="13" r="4"/></svg>
+        </div>
+      </div>
+    </div>
+    <div class="follow-section-title">Background Pictures</div>
+    <div class="profile-bgstrip" id="profile-bgstrip"></div>
+
+    <div class="follow-section-title">Country</div>
+    <div class="subpage-note" id="country-changes-note"></div>
+    <select class="subpage-input" id="country-input"><option value="">Select your country</option></select>
+    <button class="subpage-btn secondary" style="margin-bottom:16px;" onclick="saveCountry()">Save Country</button>
+
+    <div class="info-row"><span class="info-label">Email</span><span id="profile-email">-</span></div>
+    <div class="info-row"><span class="info-label">Phone</span><span id="profile-phone">-</span></div>
+    <div class="info-row"><span class="info-label">Joined</span><span id="profile-joined">-</span></div>
+  </div>
+</div>
+
+<!-- ============================================================
+     VIP PRO (VIP 1-15 tiers) - purchase flow not wired yet
+     ============================================================ -->
+<div id="screen-vip" class="hidden">
+  <div class="page-header"><button onclick="showScreen('screen-profile')">←</button><span class="page-title">VIP Pro</span></div>
+  <div class="page-body" id="vip-list"></div>
+</div>
+
+<!-- ============================================================
+     LEVEL (Send + Receive, 1-1000, real progress)
+     ============================================================ -->
+<div id="screen-level" class="hidden">
+  <div class="page-header"><button onclick="showScreen('screen-profile')">←</button><span class="page-title">Level</span></div>
+  <div class="page-body">
+    <div class="subpage-tabs">
+      <button class="subpage-tab active" data-lvl="send" onclick="setLevelTab(this)">Send Level</button>
+      <button class="subpage-tab" data-lvl="receive" onclick="setLevelTab(this)">Receive Level</button>
+    </div>
+    <div id="level-body"></div>
+  </div>
+</div>
+
+<!-- ============================================================
+     FAMILY / CP / STORE / DRESS UP - placeholders (spec details pending)
+     ============================================================ -->
+<div id="screen-family" class="hidden">
+  <div class="page-header"><button onclick="showScreen('screen-profile')">←</button><span class="page-title">Family</span></div>
+  <div class="page-body" style="text-align:center;padding-top:60px;color:#9CA3AF;">👨‍👩‍👧<br/>Family is coming soon.</div>
+</div>
+<div id="screen-cp" class="hidden">
+  <div class="page-header"><button onclick="showScreen('screen-profile')">←</button><span class="page-title">CP</span></div>
+  <div class="page-body" style="text-align:center;padding-top:60px;color:#9CA3AF;">💑<br/>Couple (CP) invites are coming soon.</div>
+</div>
+<div id="screen-store" class="hidden">
+  <div class="page-header"><button onclick="showScreen('screen-profile')">←</button><span class="page-title">Store</span></div>
+  <div class="page-body" style="text-align:center;padding-top:60px;color:#9CA3AF;">🛍️<br/>Rides, Frames and Avatar Frames are coming soon.</div>
+</div>
+<div id="screen-dressup" class="hidden">
+  <div class="page-header"><button onclick="showScreen('screen-profile')">←</button><span class="page-title">Dress Up</span></div>
+  <div class="page-body" style="text-align:center;padding-top:60px;color:#9CA3AF;">👗<br/>Dress Up is coming soon.</div>
+</div>
+
+<!-- ============================================================
+     GIFT HALL (Sent / Received, real data)
+     ============================================================ -->
+<div id="screen-gifthall" class="hidden">
+  <div class="page-header"><button onclick="showScreen('screen-profile')">←</button><span class="page-title">Gift Hall</span></div>
+  <div class="page-body">
+    <div class="subpage-tabs">
+      <button class="subpage-tab active" data-gh="sent" onclick="setGiftHallTab(this)">Gifts Sent</button>
+      <button class="subpage-tab" data-gh="received" onclick="setGiftHallTab(this)">Gifts Received</button>
+    </div>
+    <div id="gifthall-body"></div>
+  </div>
+</div>
+
+<!-- ============================================================
+     AGENCY (Apply with DB ID / Join with Agency ID)
+     ============================================================ -->
+<div id="screen-agency" class="hidden">
+  <div class="page-header"><button onclick="showScreen('screen-profile')">←</button><span class="page-title">Agency</span></div>
+  <div class="page-body" id="agency-body"></div>
+</div>
+
+<!-- ============================================================
+     LIVE RECORD (daily history)
+     ============================================================ -->
+<div id="screen-liverecord" class="hidden">
+  <div class="page-body" style="padding-top:0;" id="liverecord-body"></div>
+</div>
+
+<!-- ============================================================
+     PRETTY ID (1,000,000 coins / 30 days, no auto renew)
+     ============================================================ -->
+<div id="screen-prettyid" class="hidden">
+  <div class="page-header"><button onclick="showScreen('screen-profile')">←</button><span class="page-title">Pretty ID</span></div>
+  <div class="page-body">
+    <div class="subpage-note" id="prettyid-current"></div>
+    <div class="subpage-note">💰 Price: 1,000,000 Coins for 30 Days. Does not auto-renew.</div>
+    <input class="subpage-input" id="prettyid-input" placeholder="Enter name, number, or mix" oninput="document.getElementById('prettyid-check-result').textContent=''" />
+    <div style="font-size:12px;margin-bottom:10px;" id="prettyid-check-result"></div>
+    <button class="subpage-btn secondary" style="margin-bottom:8px;" onclick="checkPrettyId()">Check Availability</button>
+    <button class="subpage-btn" onclick="purchasePrettyId()">Purchase Pretty ID</button>
+  </div>
+</div>
+
+<!-- ============================================================
+     SETTINGS
+     ============================================================ -->
+<div id="screen-settings" class="hidden">
+  <div class="page-header"><button onclick="showScreen('screen-profile')">←</button><span class="page-title">Settings</span></div>
+  <div class="page-body">
+    <div class="menu-list">
+      <button class="menu-link" onclick="showScreen('screen-settings-pin');">🔒 Account Security</button>
+      <button class="menu-link" onclick="showScreen('screen-settings-phone');">📱 Bind Phone Number</button>
+      <button class="menu-link" onclick="clearStorage();">🗑️ Clear Storage</button>
+      <button class="menu-link" onclick="window.open('https://play.google.com/store','_blank');">⭐ Rate Us</button>
+      <button class="menu-link" onclick="showScreen('screen-settings-webview'); openWebview('Privacy Policy','privacy');">📄 Privacy Policy</button>
+      <button class="menu-link" onclick="showScreen('screen-settings-webview'); openWebview('Terms of Service','terms');">📄 Terms of Service</button>
+    </div>
+    <button class="logout-btn" onclick="confirmSignOut();">Sign Out</button>
+  </div>
+</div>
+
+<div id="screen-settings-pin" class="hidden">
+  <div class="page-header"><button onclick="showScreen('screen-settings')">←</button><span class="page-title">Account Security</span></div>
+  <div class="page-body">
+    <div class="subpage-note">Set a 6-digit PIN for extra login security.</div>
+    <input class="subpage-input" id="pin-input" maxlength="6" inputmode="numeric" placeholder="6-digit PIN" />
+    <button class="subpage-btn" onclick="savePin()">Save PIN</button>
+  </div>
+</div>
+
+<div id="screen-settings-phone" class="hidden">
+  <div class="page-header"><button onclick="showScreen('screen-settings')">←</button><span class="page-title">Bind Phone Number</span></div>
+  <div class="page-body">
+    <div class="subpage-note">Required for Agency, Tasks withdrawal, and Diamond withdrawal.</div>
+    <div id="bindphone-step1">
+      <input class="subpage-input" id="bindphone-phone" placeholder="Phone number (e.g. +234...)" />
+      <button class="subpage-btn" onclick="requestPhoneOtp()">Send Code via WhatsApp</button>
+    </div>
+    <div id="bindphone-step2" class="hidden">
+      <input class="subpage-input" id="bindphone-code" maxlength="6" inputmode="numeric" placeholder="6-digit code" />
+      <button class="subpage-btn" onclick="verifyPhoneOtp()">Verify & Bind</button>
+    </div>
+  </div>
+</div>
+
+<div id="screen-settings-webview" class="hidden">
+  <div class="page-header"><button onclick="showScreen('screen-settings')">←</button><span class="page-title" id="webview-title">-</span></div>
+  <div class="page-body" id="webview-body" style="font-size:13px;line-height:1.7;color:#374151;"></div>
+</div>
+
+
+
+<div id="screen-moment" class="hidden">
+  <div class="page-header"><button onclick="showScreen('screen-home')">←</button><span class="page-title">Moment</span></div>
+  <div class="page-body" style="text-align:center;padding-top:60px;color:#9CA3AF;">🎬<br/>Moment is coming soon.</div>
+</div>
+<div id="screen-game" class="hidden">
+  <div class="page-header"><button onclick="showScreen('screen-home')">←</button><span class="page-title">Game</span></div>
+  <div class="page-body" style="text-align:center;padding-top:60px;color:#9CA3AF;">🎮<br/>Games are coming soon.</div>
+</div>
+<div id="screen-message" class="hidden">
+  <div class="page-header"><button onclick="showScreen('screen-home')">←</button><span class="page-title">Message</span></div>
+  <div class="page-body" style="text-align:center;padding-top:60px;color:#9CA3AF;">💬<br/>Messages are coming soon.</div>
+</div>
+
+<!-- ============================================================
+     LEADERBOARD OVERLAY
+     ============================================================ -->
+<div class="lb-overlay" id="lb-overlay">
+  <div class="lb-inner">
+    <div class="lb-header">
+      <button class="lb-back" onclick="closeLeaderboard()">←</button>
+      <div class="lb-title" id="lb-title">Leaderboard</div>
+    </div>
+    <div class="lb-period-tabs" id="lb-period-tabs">
+      <button class="lb-period-tab active" data-period="daily" onclick="setLbPeriod(this)">Daily</button>
+      <button class="lb-period-tab" data-period="weekly" onclick="setLbPeriod(this)">Weekly</button>
+      <button class="lb-period-tab" data-period="monthly" onclick="setLbPeriod(this)">Monthly</button>
+    </div>
+    <div class="lb-reset-note" id="lb-reset-note"></div>
+    <div class="lb-podium" id="lb-podium"></div>
+    <div class="lb-list" id="lb-list"></div>
+    <div class="lb-prize" id="lb-prize"></div>
+  </div>
+</div>
+
+<!-- ============================================================
+     BOTTOM NAV + FLOATING GO LIVE (shown only when logged in)
+     ============================================================ -->
+<button class="fab-golive hidden" id="fab-golive" onclick="openSetup()">🎙️ Go Live</button>
+<nav class="bottomnav hidden" id="bottomnav">
+  <div class="bottomnav-inner">
+    <button class="nav-item active" data-screen="screen-home" onclick="navTo('screen-home')">🏠<br/>Home</button>
+    <button class="nav-item" data-screen="screen-moment" onclick="navTo('screen-moment')">🎬<br/>Moment</button>
+    <button class="nav-item" data-screen="screen-game" onclick="navTo('screen-game')">🎮<br/>Game</button>
+    <button class="nav-item" data-screen="screen-message" onclick="navTo('screen-message')">💬<br/>Message</button>
+    <button class="nav-item" data-screen="screen-profile" onclick="navTo('screen-profile')">👤<br/>Profile</button>
+  </div>
+</nav>
+
+<div class="toast" id="toast"></div>
+
+<!-- ============================================================
+     GO-LIVE FLOW: setup screen -> Audio Live room
+     ============================================================ -->
+<div class="stage-overlay" id="stage-overlay">
+  <div class="stage-screen active" id="screen-setup">
+    <div class="night-scene"></div>
+    <div class="stage-inner">
+      <button class="setup-close" onclick="closeStage()">✕</button>
+      <div class="setup-card">
+        <div class="setup-cover-wrap"></div>
+        <div>
+          <div class="setup-id" id="setup-username">-</div>
+          <input id="setup-title" placeholder="Give your room a title" style="margin-top:6px;background:rgba(255,255,255,0.15);border:none;border-radius:8px;padding:5px 10px;color:#fff;font-size:12px;width:180px;" />
+        </div>
+      </div>
+      <div class="setup-bottom">
+        <button class="setup-golive-btn" onclick="startGoLive()">Go Live</button>
+        <div class="setup-note">Audio Live only - no camera/video yet.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="stage-screen" id="screen-room">
+    <div class="night-scene"></div>
+    <div class="stage-inner">
+      <div class="room-topbar">
+        <div class="room-id-chip">
+          <div class="room-id-thumb"></div>
+          <div class="room-id-text" id="room-title-text">-</div>
+          <span class="room-viewer-count" id="room-viewer-count">1</span>
+        </div>
+        <button class="room-icon-btn" onclick="leaveRoom()">✕</button>
+      </div>
+
+      <div class="host-seat">
+        <div class="host-avatar" id="host-avatar">-</div>
+        <div class="host-name" id="host-name-label">-</div>
+      </div>
+
+      <div class="guest-seat guest-seat-1" onclick="toggleMySeat(this)"><div class="guest-ring">👤</div><div class="guest-num">1</div></div>
+      <div class="guest-seat guest-seat-2" onclick="toggleMySeat(this)"><div class="guest-ring">👤</div><div class="guest-num">2</div></div>
+      <div class="guest-seat guest-seat-3" onclick="toggleMySeat(this)"><div class="guest-ring">👤</div><div class="guest-num">3</div></div>
+      <div class="guest-seat guest-seat-4" onclick="toggleMySeat(this)"><div class="guest-ring">👤</div><div class="guest-num">4</div></div>
+
+      <div class="room-content">
+        <div class="room-feed" id="room-feed"></div>
+      </div>
+
+      <div class="popover" id="gift-popover"></div>
+
+      <div class="room-bottombar">
+        <input class="room-hi-input" id="room-hi-input" placeholder="Hi..." onkeydown="if(event.key==='Enter'){sendChat();}" />
+        <button class="room-bottom-btn" id="mic-btn" onclick="toggleMic()">🎤</button>
+        <button class="room-bottom-btn" onclick="togglePopover('gift-popover')" style="background:linear-gradient(135deg,#A855F7,#EC4899);">🎁</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Socket.io client is served automatically by the socket.io npm package
+     at this same-origin path - no CDN, no separate install needed. -->
+<script src="/socket.io/socket.io.js"></script>
+<script>
+// app.js
+// Plain vanilla JS - no build step, no framework. Talks to the real
+// Express + PostgreSQL API (same origin, so paths are just "/api/...").
+// Socket.io client is loaded from /socket.io/socket.io.js (served
+// automatically by the socket.io npm package on the server - no CDN).
+
+const API = "/api";
+let state = { token: localStorage.getItem("amana_token") || null, user: null };
+let socket = null;
+
+// ---------------------------------------------------------------
+// API helper - attaches the JWT automatically, throws on non-2xx
+// ---------------------------------------------------------------
+async function api(path, { method = "GET", body } = {}) {
+  const headers = { "Content-Type": "application/json" };
+  if (state.token) headers.Authorization = `Bearer ${state.token}`;
+  const res = await fetch(API + path, {
+    method,
+    headers,
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || "Request failed");
+  return data;
+}
+
+function showToast(msg) {
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  setTimeout(() => t.classList.remove("show"), 2200);
+}
+
+// =================================================================
+// INIT
+// =================================================================
+window.addEventListener("DOMContentLoaded", () => {
+  // Safety net: if init() hasn't finished in 6s (e.g. fetch() hangs instead
+  // of cleanly failing, which can happen opening this file directly via
+  // file:// instead of through the running server), force the error
+  // message to show instead of "Connecting..." forever.
+  const timeout = setTimeout(() => {
+    const loading = document.getElementById("boot-loading");
+    if (loading && !loading.classList.contains("hidden")) {
+      loading.classList.add("hidden");
+      document.getElementById("boot-error").classList.remove("hidden");
+    }
+  }, 6000);
+  init().finally(() => clearTimeout(timeout));
+});
+
+// Login/Register are deliberately not in the UI yet - the whole app is
+// being built out first. So the app quietly signs in as one shared
+// "working" account behind the scenes (real row in the real Users table,
+// real wallet, real everything) so every screen can be built and tested
+// against the actual database. Swap this out for the real Login/Register
+// screens once the rest of the app is done - nothing else needs to change,
+// since every other screen just reads from `state.user`/`state.token`.
+const WORKING_ACCOUNT = { username: "amana_builder", email: "builder@amana.live", password: "amana_build_123" };
+
+async function init() {
+  try {
+    if (state.token) {
+      try {
+        const res = await api("/auth/me");
+        state.user = res.user;
+        onAuthed();
+        return;
+      } catch {
+        localStorage.removeItem("amana_token");
+        state.token = null;
+      }
+    }
+    await autoSignIn();
+  } catch (err) {
+    console.error("Startup failed:", err);
+    document.getElementById("boot-loading").classList.add("hidden");
+    document.getElementById("boot-error").classList.remove("hidden");
+  }
+}
+
+async function autoSignIn() {
+  try {
+    const res = await api("/auth/login", { method: "POST", body: WORKING_ACCOUNT });
+    localStorage.setItem("amana_token", res.token);
+    state.token = res.token;
+    state.user = res.user;
+  } catch {
+    // Working account doesn't exist yet - create it once, real row in the real DB.
+    // (If the server itself is unreachable, this throws too, and init()'s
+    // try/catch above turns that into the visible boot-error message.)
+    const res = await api("/auth/register", { method: "POST", body: WORKING_ACCOUNT });
+    localStorage.setItem("amana_token", res.token);
+    state.token = res.token;
+    state.user = res.user;
+  }
+  onAuthed();
+}
+
+function connectSocket() {
+  if (socket) return socket;
+  socket = io({ auth: { token: state.token } });
+  return socket;
+}
+
+function onAuthed() {
+  document.getElementById("boot-status").classList.add("hidden");
+  document.getElementById("bottomnav").classList.remove("hidden");
+  document.getElementById("fab-golive").classList.remove("hidden");
+  connectSocket();
+  showScreen("screen-home");
+  loadLiveTab();
+  loadTop3Previews();
+}
+
+// =================================================================
+// SCREEN NAVIGATION
+// =================================================================
+function showScreen(id) {
+  document.querySelectorAll("body > div[id^='screen-']").forEach((el) => el.classList.add("hidden"));
+  document.getElementById(id).classList.remove("hidden");
+}
+function navTo(screenId) {
+  showScreen(screenId);
+  document.querySelectorAll(".nav-item").forEach((b) => b.classList.toggle("active", b.dataset.screen === screenId));
+  if (screenId === "screen-wallet") loadWallet();
+  if (screenId === "screen-referral") loadReferral();
+  if (screenId === "screen-profile") loadProfile();
+}
+function toggleLangMenu() {
+  document.getElementById("lang-menu").classList.toggle("open");
+}
+function setLanguage(lang) {
+  // Full translation wiring is a follow-up step; this keeps the selector
+  // functional and remembers the choice for now.
+  localStorage.setItem("amana_lang", lang);
+  document.querySelectorAll(".lang-option").forEach((b) => b.classList.remove("active"));
+  event.target.classList.add("active");
+  document.getElementById("lang-menu").classList.remove("open");
+  showToast(lang === "ha" ? "Harshe: Hausa" : lang === "ar" ? "اللغة: العربية" : "Language: English");
+}
+
+// =================================================================
+// HOME - LIVE TAB
+// =================================================================
+let allStreams = [];
+let activeFilter = "Stage";
+let bannerIndex = 0;
+const BANNERS = ["tasks", "referral", "leaderboard"];
+
+function setHomeTab(tab) {
+  document.getElementById("hometab-live").classList.toggle("active", tab === "live");
+  document.getElementById("hometab-follow").classList.toggle("active", tab === "follow");
+  document.getElementById("hometab-content-live").classList.toggle("hidden", tab !== "live");
+  document.getElementById("hometab-content-follow").classList.toggle("hidden", tab !== "follow");
+  if (tab === "follow") loadFollowTab();
+}
+
+async function loadLiveTab() {
+  try {
+    const res = await api("/streams/live");
+    allStreams = res.streams;
+    renderLiveList();
+  } catch (err) {
+    console.error(err);
+  }
+}
+setInterval(() => { if (state.user) loadLiveTab(); }, 5000);
+
+function setCategory(btn) {
+  document.querySelectorAll(".cat-tab").forEach((b) => b.classList.remove("active"));
+  btn.classList.add("active");
+  activeFilter = btn.dataset.filter;
+  renderLiveList();
+}
+
+function renderLiveList() {
+  const search = document.getElementById("live-search").value.toLowerCase();
+  const list = document.getElementById("live-list");
+  const filtered = allStreams.filter(
+    (s) =>
+      s.category === activeFilter &&
+      (s.title.toLowerCase().includes(search) || s.hostUsername.toLowerCase().includes(search))
+  );
+  if (filtered.length === 0) {
+    list.innerHTML = `<div class="empty-state">No live rooms in this category right now.</div>`;
+    return;
+  }
+  list.innerHTML = filtered
+    .map(
+      (s) => `
+    <button class="live-item" onclick="openRoomAsViewer(${s.id})">
+      <div class="avatar-wrap">
+        <div class="avatar">${s.hostUsername[0].toUpperCase()}</div>
+        <span class="live-badge">LIVE</span>
+      </div>
+      <div class="live-info">
+        <div class="live-item-title">${escapeHtml(s.title)}</div>
+        <div class="live-meta">
+          <span class="live-host">@${escapeHtml(s.hostUsername)}</span>
+          ${s.agencyName ? `<span class="live-agency">${escapeHtml(s.agencyName)}</span>` : ""}
+          <span class="live-tag">${s.category}</span>
+        </div>
+      </div>
+      <div class="viewer-count">${s.viewerCount}</div>
+    </button>`
+    )
+    .join("");
+}
+
+async function loadTop3Previews() {
+  try {
+    const [agency, roomwall, giftwall] = await Promise.all([
+      api("/leaderboard/agency?period=daily"),
+      api("/leaderboard/roomwall?period=daily"),
+      api("/leaderboard/giftwall?period=daily"),
+    ]);
+    document.getElementById("top3-agency-avatars").innerHTML = agency.ranking
+      .slice(0, 3)
+      .map((a, i) => `<span class="mini-avatar" style="margin-left:${i === 0 ? 0 : -8}px;">${a.name[0]}</span>`)
+      .join("");
+    document.getElementById("top3-roomwall-sub").textContent = roomwall.ranking[0]
+      ? `#1: ${roomwall.ranking[0].name}`
+      : "No room yet";
+    document.getElementById("top3-giftwall-sub").textContent = giftwall.ranking[0]
+      ? `${giftwall.ranking[0].name} - top today`
+      : "No gifts yet today";
+  } catch (err) {
+    console.error(err);
+  }
+}
+
+setInterval(() => {
+  bannerIndex = (bannerIndex + 1) % BANNERS.length;
+  document.querySelectorAll(".banner-slide").forEach((s, i) => s.classList.toggle("active", i === bannerIndex));
+  document.getElementById("banner-dots").innerHTML = BANNERS.map(
+    (_, i) => `<span class="banner-dot${i === bannerIndex ? " active" : ""}"></span>`
+  ).join("");
+}, 5000);
+
+function onBannerClick(type) {
+  if (type === "tasks") { showScreen("screen-tasks"); loadTasks(); }
+  else if (type === "referral") { showScreen("screen-referral"); loadReferral(); }
+  else openLeaderboard("host");
+}
+
+// =================================================================
+// HOME - FOLLOW TAB
+// =================================================================
+async function loadFollowTab() {
+  try {
+    const [storiesRes, adminRes, followedRes] = await Promise.all([
+      api("/follow/stories"),
+      api("/streams/mine/admin"),
+      api("/follow/rooms"),
+    ]);
+    document.getElementById("stories-row").innerHTML = storiesRes.stories.length
+      ? storiesRes.stories
+          .map(
+            (s) => `
+      <div class="story" onmousedown="startPin(${s.userId})" onmouseup="cancelPin()" onmouseleave="cancelPin()" ontouchstart="startPin(${s.userId})" ontouchend="cancelPin()">
+        <div class="story-ring${s.isLive ? " live" : ""}"><div class="story-avatar">${s.username[0].toUpperCase()}</div></div>
+        <div class="story-name">${escapeHtml(s.username)}</div>
+      </div>`
+          )
+          .join("")
+      : `<p class="empty-state">You're not following anyone yet.</p>`;
+
+    document.getElementById("admin-rooms-grid").innerHTML = renderRoomCards(adminRes.streams);
+    document.getElementById("followed-rooms-grid").innerHTML = renderRoomCards(
+      followedRes.rooms.map((r) => ({ ...r, id: r.id }))
+    );
+  } catch (err) {
+    console.error(err);
+  }
+}
+
+function renderRoomCards(rooms) {
+  if (!rooms || rooms.length === 0) return `<p class="empty-state">Nothing here yet.</p>`;
+  return rooms
+    .map(
+      (s) => `
+    <button class="follow-card" onclick="openRoomAsViewer(${s.id})">
+      <div class="follow-card-top">
+        <div class="follow-card-avatar">${s.hostUsername[0].toUpperCase()}</div>
+        <div><div class="follow-card-title">${escapeHtml(s.title)}</div><div class="follow-card-sub">@${escapeHtml(s.hostUsername)}</div></div>
+      </div>
+      <span class="follow-card-status">● LIVE - ${s.viewerCount}</span>
+    </button>`
+    )
+    .join("");
+}
+
+let pinTimer = null;
+function startPin(userId) {
+  pinTimer = setTimeout(async () => {
+    await api(`/follow/${userId}/pin`, { method: "POST" });
+    loadFollowTab();
+    showToast("Pinned");
+  }, 600);
+}
+function cancelPin() {
+  if (pinTimer) clearTimeout(pinTimer);
+}
+
+// =================================================================
+// WALLET
+// =================================================================
+async function loadWallet() {
+  const [w, tx] = await Promise.all([api("/wallet"), api("/wallet/transactions")]);
+  document.getElementById("wallet-coins").textContent = "🪙 " + w.coinBalance;
+  document.getElementById("wallet-diamonds").textContent = "💎 " + w.diamondBalance;
+  document.getElementById("wallet-tx-list").innerHTML = tx.transactions.length
+    ? tx.transactions
+        .map(
+          (t) => `
+    <div class="tx-row">
+      <span>${t.type.replace("_", " ")}</span>
+      <span class="${t.amount >= 0 ? "tx-amount-pos" : "tx-amount-neg"}">${t.amount >= 0 ? "+" : ""}${t.amount}</span>
+    </div>`
+        )
+        .join("")
+    : `<p class="empty-state">No transactions yet</p>`;
+}
+async function buyCoins(coins) {
+  await api("/wallet/purchase", { method: "POST", body: { coins } });
+  showToast(`+${coins} coins added`);
+  loadWallet();
+}
+async function requestWithdraw() {
+  const u = state.user;
+  if (!u.phoneVerified) return showToast("Bind your phone number first (Profile > Settings > Bind Phone Number)");
+  if (!u.agencyId) return showToast("You must join an Agency first (Profile > Agency)");
+  const diamonds = Number(prompt("Diamonds to withdraw (minimum 500,000):"));
+  if (!diamonds) return;
+  if (diamonds < 500000) return showToast("Minimum withdrawal is 500,000 Diamonds");
+  try {
+    const res = await api("/wallet/withdraw", { method: "POST", body: { diamonds } });
+    showToast(res.message);
+    loadWallet();
+  } catch (err) {
+    showToast(err.message);
+  }
+}
+
+// =================================================================
+// REFERRAL
+// =================================================================
+async function loadReferral() {
+  const res = await api("/referral");
+  document.getElementById("referral-amanaid").textContent = res.amanaId;
+  document.getElementById("referral-link").value = res.referralLink;
+  document.getElementById("referral-count").textContent = res.totalReferred;
+  document.getElementById("referral-earned").textContent = "🪙 " + res.totalBonusCoinsEarned;
+  document.getElementById("referral-list").innerHTML = res.referrals.length
+    ? res.referrals
+        .map((r) => `<div class="tx-row"><span>@${escapeHtml(r.username)}</span><span class="tx-amount-pos">+${r.bonusCoins}</span></div>`)
+        .join("")
+    : `<p class="empty-state">No referrals yet</p>`;
+}
+function copyReferralLink() {
+  const input = document.getElementById("referral-link");
+  input.select();
+  navigator.clipboard.writeText(input.value);
+  showToast("Copied!");
+}
+
+// =================================================================
+// TASKS
+// =================================================================
+async function loadTasks() {
+  const res = await api("/tasks");
+  document.getElementById("tasks-list").innerHTML = res.tasks
+    .map((t) => {
+      const cls = t.completed ? "completed" : t.unlocked ? "" : "locked";
+      const action = t.completed
+        ? `<span style="color:#16A34A;font-size:11px;font-weight:700;">✓ Done</span>`
+        : t.unlocked
+        ? `<button class="task-btn" onclick="completeTask(${t.day})">Complete</button>`
+        : `<span style="color:#9CA3AF;font-size:11px;">🔒 Locked</span>`;
+      return `
+      <div class="task-card ${cls}">
+        <div>
+          <div class="task-day">Day ${t.day}</div>
+          <div class="task-title">${escapeHtml(t.title)}</div>
+          <div class="task-reward">🪙 ${t.rewardCoins}</div>
+        </div>
+        ${action}
+      </div>`;
+    })
+    .join("");
+}
+async function completeTask(day) {
+  try {
+    await api(`/tasks/${day}/complete`, { method: "POST" });
+    loadTasks();
+    showToast("Task completed!");
+  } catch (err) {
+    showToast(err.message);
+  }
+}
+
+// =================================================================
+// PROFILE - header, stats row, grid menu
+// =================================================================
+const ICONS = {
+  wallet: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"/></svg>',
+  vip: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 9h20M8 9 12 3l4 6M12 21 8 9l4 6 4-6-4 12Z"/></svg>',
+  star: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.9 6.9 7.1.6-5.4 4.7 1.7 7-6.3-4-6.3 4 1.7-7L2 9.5l7.1-.6z"/></svg>',
+  mail: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 6-10 7L2 6"/></svg>',
+  family: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="3"/><circle cx="17" cy="9" r="2.5"/><path d="M2 21v-1a5 5 0 0 1 5-5h1a5 5 0 0 1 5 5v1"/><path d="M15 21v-1a4 4 0 0 1 4-4h.5a3.5 3.5 0 0 1 3.5 3.5V21"/></svg>',
+  heart: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 21s-7.5-4.6-10-9C.3 8.5 2 4 6.2 4c2 0 3.4 1 4.8 2.7C12.4 5 13.8 4 15.8 4 20 4 21.7 8.5 22 12c-2.5 4.4-10 9-10 9Z"/></svg>',
+  check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m8 12 3 3 5-6"/></svg>',
+  bag: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8h12l1 13H5Z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg>',
+  dress: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2h6l1 4-2 2 3 12H7l3-12-2-2Z"/></svg>',
+  gift: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="9" width="18" height="12" rx="1"/><path d="M3 9V6a1 1 0 0 1 1-1h16a1 1 0 0 1 1 1v3M12 5v16M8 5a2.5 2.5 0 0 1 0-5C10 0 12 5 12 5s2-5 4-5a2.5 2.5 0 0 1 0 5"/></svg>',
+  building: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18"/><path d="M9 8h.01M15 8h.01M9 12h.01M15 12h.01M9 16h.01M15 16h.01"/></svg>',
+  video: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="14" height="12" rx="2"/><path d="m22 8-6 4 6 4Z"/></svg>',
+  sparkle: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l1.5 5L19 9l-5.5 2L12 16l-1.5-5L5 9l5.5-2Z"/><path d="M19 16l.7 2.3L22 19l-2.3.7L19 22l-.7-2.3L16 19l2.3-.7Z"/></svg>',
+  gear: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg>',
+};
+const PROFILE_GRID_ITEMS = [
+  { icon: "wallet", label: "Wallet", bg: "linear-gradient(135deg,#F59E0B,#F97316)", action: "showScreen('screen-wallet'); loadWallet();" },
+  { icon: "vip", label: "VIP Pro", bg: "linear-gradient(135deg,#0EA5E9,#6366F1)", action: "showScreen('screen-vip');" },
+  { icon: "star", label: "Level", bg: "linear-gradient(135deg,#FBBF24,#F59E0B)", action: "showScreen('screen-level'); loadLevel();" },
+  { icon: "mail", label: "Invitation", bg: "linear-gradient(135deg,#3B82F6,#2563EB)", action: "showScreen('screen-referral'); loadReferral();" },
+  { icon: "family", label: "Family", bg: "linear-gradient(135deg,#10B981,#059669)", action: "showScreen('screen-family');" },
+  { icon: "heart", label: "CP", bg: "linear-gradient(135deg,#F472B6,#EC4899)", action: "showScreen('screen-cp');" },
+  { icon: "bag", label: "Store", bg: "linear-gradient(135deg,#8B5CF6,#7C3AED)", action: "showScreen('screen-store');" },
+  { icon: "dress", label: "Dress Up", bg: "linear-gradient(135deg,#EC4899,#DB2777)", action: "showScreen('screen-dressup');" },
+  { icon: "gift", label: "Gift Hall", bg: "linear-gradient(135deg,#EF4444,#DC2626)", action: "showScreen('screen-gifthall'); loadGiftHall();" },
+  { icon: "sparkle", label: "Pretty ID", bg: "linear-gradient(135deg,#FBBF24,#D97706)", action: "showScreen('screen-prettyid'); loadPrettyId();" },
+];
+const PROFILE_MENU_ITEMS = [
+  { icon: "building", label: "Agency", bg: "linear-gradient(135deg,#6366F1,#4F46E5)", action: "showScreen('screen-agency'); loadAgencyScreen();" },
+  { icon: "check", label: "Tasks", bg: "linear-gradient(135deg,#10B981,#059669)", action: "showScreen('screen-tasks'); loadTasks();" },
+  { icon: "video", label: "Live Record", bg: "linear-gradient(135deg,#64748B,#475569)", action: "showScreen('screen-liverecord'); loadLiveRecord();" },
+  { icon: "gear", label: "Settings", bg: "linear-gradient(135deg,#9CA3AF,#6B7280)", action: "showScreen('screen-settings');" },
+];
+function renderProfileGridAndMenu() {
+  document.getElementById("profile-grid").innerHTML = PROFILE_GRID_ITEMS.map(
+    (item) => `
+    <button class="profile-grid-item" onclick="${item.action}">
+      <span class="icon-badge" style="background:${item.bg}">${ICONS[item.icon]}</span>
+      <span class="profile-grid-label">${item.label}</span>
+    </button>`
+  ).join("");
+  document.getElementById("profile-menu-list").innerHTML = PROFILE_MENU_ITEMS.map(
+    (item) => `
+    <button class="menu-link" onclick="${item.action}">
+      <span class="icon-badge" style="background:${item.bg}">${ICONS[item.icon]}</span>
+      <span>${item.label}</span>
+      <span class="menu-link-arrow">›</span>
+    </button>`
+  ).join("");
+}
+document.addEventListener("DOMContentLoaded", renderProfileGridAndMenu);
+
+async function loadProfile() {
+  const res = await api("/auth/me");
+  state.user = res.user;
+  const u = state.user;
+
+  document.getElementById("profile-avatar-letter").textContent = u.username[0].toUpperCase();
+  document.getElementById("profile-username").textContent = "@" + u.username;
+
+  // Pretty ID (golden, replaces the normal ID) or normal AmanaID
+  const idEl = document.getElementById("profile-amanaid");
+  if (u.prettyId) {
+    idEl.textContent = "✨ " + u.prettyId;
+    idEl.classList.add("pretty");
+  } else {
+    idEl.textContent = u.amanaId;
+    idEl.classList.remove("pretty");
+  }
+
+  // Gender chip - locked forever once set
+  const genderChip = document.getElementById("profile-gender-chip");
+  if (u.gender === "male") { genderChip.className = "gender-chip male locked"; genderChip.textContent = "♂ Male"; }
+  else if (u.gender === "female") { genderChip.className = "gender-chip female locked"; genderChip.textContent = "♀ Female"; }
+  else { genderChip.className = "gender-chip unset"; genderChip.textContent = "Set gender ›"; }
+
+  // Badges
+  const badges = [];
+  if (u.isHostBadge) badges.push(`<span class="profile-badge">Host</span>`);
+  if (u.agencyId) badges.push(`<span class="profile-badge">Agency</span>`);
+  if (u.isDbBadge) badges.push(`<span class="profile-badge">DB</span>`);
+  document.getElementById("profile-badges").innerHTML = badges.join("");
+
+  // Stats row + Send/Receive level chips
+  const stats = await api("/profile/stats");
+  document.getElementById("profile-levels").innerHTML = `
+    <span class="level-chip">↑ Send Lv.${stats.sendLevel.level}</span>
+    <span class="level-chip">↓ Receive Lv.${stats.receiveLevel.level}</span>`;
+  document.getElementById("profile-stats-row").innerHTML = `
+    <div class="profile-stat"><div class="profile-stat-value">${stats.following}</div><div class="profile-stat-label">Following</div></div>
+    <div class="profile-stat"><div class="profile-stat-value">${stats.fans}</div><div class="profile-stat-label">Fans</div></div>
+    <div class="profile-stat"><div class="profile-stat-value">${stats.friends}</div><div class="profile-stat-label">Friends</div></div>
+    <div class="profile-stat"><div class="profile-stat-value">${stats.coinsSent}</div><div class="profile-stat-label">Coins Sent</div></div>
+    <div class="profile-stat"><div class="profile-stat-value">${stats.coinsReceived}</div><div class="profile-stat-label">Coins Recv</div></div>`;
+  state.profileStats = stats;
+}
+
+// ---- View Profile (public-style card; works for self or any user id) ----
+let pvViewedId = null;
+async function loadProfileView(userId) {
+  const targetId = userId || state.user.id;
+  pvViewedId = targetId;
+  const res = await api(`/users/${targetId}/profile`);
+
+  document.getElementById("pv-avatar-letter").textContent = res.username[0].toUpperCase();
+  document.getElementById("pv-username").textContent = "@" + res.username;
+  document.getElementById("pv-amanaid").textContent = res.prettyId ? "✨ " + res.prettyId : res.amanaId;
+  document.getElementById("pv-field-id").innerHTML = `${res.amanaId} <span style="color:#3B82F6;cursor:pointer;" onclick="copyText('${res.amanaId}')">⧉</span>`;
+  document.getElementById("pv-field-country").textContent = res.country || "Not set";
+  document.getElementById("pv-field-bio").textContent = res.bio || "-";
+
+  const badges = [];
+  if (res.isHostBadge) badges.push(`<span class="profile-badge" style="background:#EDE9FE;color:#7C3AED;">Host</span>`);
+  if (res.agencyId) badges.push(`<span class="profile-badge" style="background:#FEF3C7;color:#B45309;">Agency</span>`);
+  if (res.isDbBadge) badges.push(`<span class="profile-badge" style="background:#DBEAFE;color:#2563EB;">DB</span>`);
+  document.getElementById("pv-badges").innerHTML = badges.join("");
+
+  const s = res.stats;
+  document.getElementById("pv-stats-row").innerHTML = `
+    <div><div class="pv-stat-value">${s.fans}</div><div class="pv-stat-label">Fans</div></div>
+    <div><div class="pv-stat-value">${s.coinsSent}</div><div class="pv-stat-label">Sent</div></div>
+    <div><div class="pv-stat-value">${s.coinsReceived}</div><div class="pv-stat-label">Got</div></div>
+    <div><div class="pv-stat-value">${s.friends}</div><div class="pv-stat-label">Friends</div></div>`;
+
+  document.getElementById("pv-edit-btn").style.display = res.isSelf ? "flex" : "none";
+  document.getElementById("pv-search-btn").style.display = res.isSelf ? "flex" : "none";
+  document.getElementById("pv-dressup-row").style.cursor = res.isSelf ? "pointer" : "default";
+  document.getElementById("pv-dressup-row").onclick = res.isSelf ? () => showScreen("screen-dressup") : null;
+
+  const followBtn = document.getElementById("pv-follow-btn");
+  if (res.isSelf) {
+    followBtn.style.display = "none";
+  } else {
+    followBtn.style.display = "block";
+    followBtn.textContent = res.isFollowing ? "Following ✓" : "+ Follow";
+    followBtn.className = res.isFollowing ? "subpage-btn secondary" : "subpage-btn";
+    followBtn.dataset.following = res.isFollowing;
+  }
+}
+function closeProfileView() {
+  showScreen(pvViewedId && pvViewedId !== state.user.id ? "screen-find-people" : "screen-profile");
+}
+async function toggleFollowPv() {
+  const following = document.getElementById("pv-follow-btn").dataset.following === "true";
+  try {
+    if (following) await api(`/follow/${pvViewedId}`, { method: "DELETE" });
+    else await api(`/follow/${pvViewedId}`, { method: "POST" });
+    loadProfileView(pvViewedId);
+  } catch (err) {
+    showToast(err.message);
+  }
+}
+function copyText(text) {
+  navigator.clipboard?.writeText(text);
+  showToast("Copied");
+}
+
+// ---- Find People (search by username / AmanaID / Pretty ID) ----
+let findPeopleTimer = null;
+function searchPeople() {
+  clearTimeout(findPeopleTimer);
+  findPeopleTimer = setTimeout(async () => {
+    const q = document.getElementById("find-people-input").value.trim();
+    const box = document.getElementById("find-people-results");
+    if (!q) { box.innerHTML = ""; return; }
+    const res = await api("/users/search?q=" + encodeURIComponent(q));
+    box.innerHTML = res.users.length
+      ? res.users
+          .map(
+            (u) => `
+        <button class="menu-link" onclick="showScreen('screen-profile-view'); loadProfileView(${u.id});">
+          <span class="icon-badge" style="background:linear-gradient(135deg,#3B82F6,#A855F7);">${u.username[0].toUpperCase()}</span>
+          <span>@${escapeHtml(u.username)}</span>
+          <span class="menu-link-arrow">${u.prettyId ? "✨" : u.amanaId}</span>
+        </button>`
+          )
+          .join("")
+      : `<p class="empty-state">No results</p>`;
+  }, 300);
+}
+
+// ---- Edit Profile (avatar / background pictures / country / joined) ----
+function loadProfileEdit() {
+  const u = state.user;
+  document.getElementById("editprofile-avatar-letter").innerHTML =
+    u.username[0].toUpperCase() +
+    `<div class="editprofile-avatar-edit" onclick="showToast('Photo upload is coming soon')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2Z"/><circle cx="12" cy="13" r="4"/></svg>
+    </div>`;
+  const pics = u.backgroundPics || [];
+  document.getElementById("profile-bgstrip").innerHTML = Array.from({ length: 5 })
+    .map((_, i) =>
+      pics[i]
+        ? `<div class="profile-bg-slot" style="background:url('${escapeHtml(pics[i])}') center/cover;" onclick="showToast('Photo upload is coming soon')"></div>`
+        : `<div class="profile-bg-slot" onclick="showToast('Photo upload is coming soon')">+</div>`
+    )
+    .join("");
+  document.getElementById("profile-email").textContent = u.email;
+  document.getElementById("profile-phone").textContent = u.phone ? `${u.phone} ${u.phoneVerified ? "✓" : "(unverified)"}` : "Not set";
+  document.getElementById("profile-joined").textContent = new Date(u.createdAt).toLocaleDateString();
+  document.getElementById("country-input").value = u.country || "";
+  const used = u.countryChangesUsed || 0;
+  const note = document.getElementById("country-changes-note");
+  if (used >= 2) {
+    note.textContent = "You've used both of your country changes. It's now locked.";
+    document.getElementById("country-input").disabled = true;
+  } else {
+    note.textContent = `You can change your country ${2 - used} more time${2 - used === 1 ? "" : "s"}.`;
+    document.getElementById("country-input").disabled = false;
+  }
+}
+async function saveCountry() {
+  const country = document.getElementById("country-input").value.trim();
+  if (!country) return showToast("Enter a country");
+  try {
+    await api("/profile/country", { method: "POST", body: { country } });
+    showToast("Country updated");
+    await loadProfile();
+    loadProfileEdit();
+  } catch (err) {
+    showToast(err.message);
+  }
+}
+
+function openGenderPicker() {
+  if (state.user.gender) return showToast("Gender can only be set once and cannot be changed");
+  const choice = confirm("Tap OK to set gender to Male, Cancel to set to Female.") ? "male" : "female";
+  if (!confirm(`Set gender to ${choice === "male" ? "Male" : "Female"}? This cannot be changed later.`)) return;
+  setGender(choice);
+}
+async function setGender(gender) {
+  try {
+    await api("/profile/gender", { method: "POST", body: { gender } });
+    loadProfile();
+  } catch (err) {
+    showToast(err.message);
+  }
+}
+
+// =================================================================
+// VIP PRO (VIP 1-15) - purchase flow not wired yet
+// =================================================================
+function renderVipList() {
+  document.getElementById("vip-list").innerHTML = Array.from({ length: 15 }, (_, i) => i + 1)
+    .map(
+      (n) => `
+    <div class="vip-tier-card">
+      <div><div style="font-weight:700;">💎 VIP ${n}</div><div style="font-size:11px;color:#6B7280;">Exclusive badge + perks</div></div>
+      <button class="pkg-btn" onclick="showToast('VIP purchase is coming soon')">Get</button>
+    </div>`
+    )
+    .join("");
+}
+document.addEventListener("DOMContentLoaded", renderVipList);
+
+// Countries Flutterwave supports for payments/payouts
+const FLUTTERWAVE_COUNTRIES = [
+  "Nigeria", "Ghana", "Kenya", "Uganda", "Tanzania", "Rwanda", "Zambia",
+  "South Africa", "Egypt", "Côte d'Ivoire", "Cameroon", "Senegal",
+  "Sierra Leone", "Malawi", "Mozambique", "DR Congo", "Ethiopia",
+  "Burkina Faso", "Mali", "Benin", "Togo", "Gabon", "Guinea",
+  "United States", "United Kingdom", "Canada",
+];
+document.addEventListener("DOMContentLoaded", () => {
+  const sel = document.getElementById("country-input");
+  if (sel) {
+    FLUTTERWAVE_COUNTRIES.forEach((c) => {
+      const opt = document.createElement("option");
+      opt.value = c;
+      opt.textContent = c;
+      sel.appendChild(opt);
+    });
+  }
+});
+
+// =================================================================
+// LEVEL (Send / Receive, real progress from /profile/stats)
+// =================================================================
+let levelTab = "send";
+function setLevelTab(btn) {
+  document.querySelectorAll("#screen-level .subpage-tab").forEach((t) => t.classList.remove("active"));
+  btn.classList.add("active");
+  levelTab = btn.dataset.lvl;
+  renderLevelBody();
+}
+async function loadLevel() {
+  if (!state.profileStats) await loadProfile();
+  renderLevelBody();
+}
+function renderLevelBody() {
+  const s = state.profileStats;
+  if (!s) return;
+  const data = levelTab === "send" ? s.sendLevel : s.receiveLevel;
+  const total = levelTab === "send" ? s.coinsSent : s.coinsReceived;
+  const pct = data.level >= 1000 ? 100 : Math.round((data.progressCoins / data.stepSize) * 100);
+  document.getElementById("level-body").innerHTML = `
+    <div style="text-align:center;padding:20px 0;">
+      <div style="font-size:40px;">⭐</div>
+      <div style="font-size:22px;font-weight:800;">Level ${data.level}</div>
+      <div style="font-size:12px;color:#6B7280;">out of 1000</div>
+    </div>
+    <div class="subpage-row"><span>Total ${levelTab === "send" ? "Coins Sent" : "Coins Received"}</span><span style="font-weight:700;">${total}</span></div>
+    <div class="subpage-row" style="flex-direction:column;align-items:flex-start;">
+      <span>${data.level >= 1000 ? "Max level reached" : `${data.coinsToNextLevel} coins to Level ${data.level + 1}`}</span>
+      <div class="level-progress-track" style="width:100%;"><div class="level-progress-fill" style="width:${pct}%;"></div></div>
+    </div>`;
+}
+
+// =================================================================
+// GIFT HALL (Sent / Received, real data)
+// =================================================================
+let giftHallTab = "sent";
+let giftHallData = null;
+function setGiftHallTab(btn) {
+  document.querySelectorAll("#screen-gifthall .subpage-tab").forEach((t) => t.classList.remove("active"));
+  btn.classList.add("active");
+  giftHallTab = btn.dataset.gh;
+  renderGiftHallBody();
+}
+async function loadGiftHall() {
+  giftHallData = await api("/profile/gifts");
+  renderGiftHallBody();
+}
+function renderGiftHallBody() {
+  if (!giftHallData) return;
+  const list = giftHallData[giftHallTab];
+  document.getElementById("gifthall-body").innerHTML = list.length
+    ? list.map((g) => `<div class="subpage-row"><span>🎀 ${escapeHtml(g.name)}</span><span style="font-weight:700;">×${g.count}</span></div>`).join("")
+    : `<p class="empty-state">No gifts ${giftHallTab} yet</p>`;
+}
+
+// =================================================================
+// AGENCY (Apply with DB ID / Join with Agency ID)
+// =================================================================
+async function loadAgencyScreen() {
+  const u = state.user;
+  const body = document.getElementById("agency-body");
+  if (u.agencyId) {
+    body.innerHTML = `<div class="subpage-note">You are a member of an agency. 🏢</div>`;
+    return;
+  }
+  if (!u.phoneVerified) {
+    body.innerHTML = `<div class="subpage-note">You must <b>bind your phone number</b> before you can apply to or join an agency.</div>
+      <button class="subpage-btn" onclick="showScreen('screen-settings-phone')">Bind Phone Number</button>`;
+    return;
+  }
+  const statusNote =
+    u.agencyApplicationStatus === "pending" ? `<div class="subpage-note">Your agency application is <b>pending review</b>.</div>` : "";
+  body.innerHTML = `
+    ${statusNote}
+    <div class="follow-section-title">Apply as Agency</div>
+    <input class="subpage-input" id="agency-dbid" placeholder="Enter your DB ID" />
+    <button class="subpage-btn secondary" style="margin-bottom:20px;" onclick="applyAgency()">Submit Application</button>
+    <div class="follow-section-title">Join Existing Agency</div>
+    <input class="subpage-input" id="agency-id" placeholder="Enter Agency ID" />
+    <button class="subpage-btn" onclick="joinAgency()">Join Agency</button>`;
+}
+async function applyAgency() {
+  const dbId = document.getElementById("agency-dbid").value.trim();
+  if (!dbId) return showToast("Enter your DB ID");
+  try {
+    const res = await api("/profile/agency/apply", { method: "POST", body: { dbId } });
+    showToast(res.message);
+    await loadProfile();
+    loadAgencyScreen();
+  } catch (err) {
+    showToast(err.message);
+  }
+}
+async function joinAgency() {
+  const agencyId = document.getElementById("agency-id").value.trim();
+  if (!agencyId) return showToast("Enter an Agency ID");
+  try {
+    const res = await api("/profile/agency/join", { method: "POST", body: { agencyId } });
+    showToast(res.message);
+    await loadProfile();
+    loadAgencyScreen();
+  } catch (err) {
+    showToast(err.message);
+  }
+}
+
+// =================================================================
+// LIVE RECORD (daily history)
+// =================================================================
+async function loadLiveRecord() {
+  const res = await api("/profile/live-record");
+  const days = res.days;
+  const totalDiamonds = days.reduce((s, d) => s + d.giftsReceived, 0);
+  const totalMinutes = days.reduce((s, d) => s + d.minutes, 0);
+  const validDays = days.filter((d) => d.rooms > 0).length;
+  const usd = (totalDiamonds / 100000).toFixed(2);
+
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const fmt = (d) => `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`;
+
+  const rows = days.length
+    ? days
+        .map(
+          (d) => `
+      <tr>
+        <td>${d.day}</td>
+        <td>${d.minutes}</td>
+        <td>${d.rooms > 0 ? 1 : 0}</td>
+        <td>${d.giftsReceived}</td>
+        <td>0</td>
+      </tr>`
+        )
+        .join("")
+    : `<tr><td colspan="5" style="color:#9CA3AF;padding:20px;">No live history yet</td></tr>`;
+
+  document.getElementById("liverecord-body").innerHTML = `
+    <div class="lr-banner">
+      <div class="lr-banner-top">
+        <button class="lr-back" onclick="showScreen('screen-profile')">‹</button>
+        <span class="lr-banner-title">Live Record</span>
+      </div>
+      <div class="lr-period-row">
+        <span class="lr-period-chip">This month ▾</span>
+        <span class="lr-period-chip">${fmt(monthStart)} - ${fmt(now)}/${now.getFullYear()}</span>
+      </div>
+      <div class="lr-total-card">
+        <div class="lr-total-head">📊 Total</div>
+        <div class="lr-total-cols">
+          <div>
+            <div class="lr-total-label">Voice Total Personal Diamonds</div>
+            <div class="lr-total-value">💎 ${totalDiamonds}</div>
+            <div class="lr-usd">≈ $${usd}</div>
+          </div>
+          <div>
+            <div class="lr-total-label">Room Total Diamonds</div>
+            <div class="lr-total-value">0</div>
+          </div>
+        </div>
+        <div class="lr-subbar">Chat Diamonds: 0</div>
+        <div class="lr-subgrid">
+          <div class="lr-subbar">Valid day: ${validDays}</div>
+          <div class="lr-subbar">Total Duration(mins): ${Math.round(totalMinutes)}</div>
+        </div>
+      </div>
+    </div>
+    <div style="padding:0 2px;">
+      <div class="lr-details-head"><span>Details</span><span style="color:#3B82F6;font-size:12px;font-weight:600;">Voice broadcast ⇄</span></div>
+      <div class="lr-table-wrap">
+        <table class="lr-table">
+          <thead><tr><th>Date</th><th>Duration(mins)</th><th>Valid day</th><th>Personal Room Diamonds</th><th>Room Diamonds</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+      <div class="lr-note">
+        <b>Information Note:</b><br/>
+        • Time zone: GMT+1<br/>
+        • Live duration and diamond revenue data are updated in real time. Exit your current room and refresh this page to see the latest data.
+      </div>
+    </div>`;
+}
+
+// =================================================================
+// PRETTY ID
+// =================================================================
+async function loadPrettyId() {
+  const u = state.user;
+  document.getElementById("prettyid-current").textContent = u.prettyId
+    ? `✨ Your current Pretty ID: ${u.prettyId} (expires ${new Date(u.prettyIdExpiresAt).toLocaleDateString()})`
+    : "You don't have a Pretty ID yet.";
+}
+async function checkPrettyId() {
+  const value = document.getElementById("prettyid-input").value.trim();
+  if (!value) return showToast("Enter a value first");
+  const res = await api("/profile/pretty-id/check?value=" + encodeURIComponent(value));
+  const el = document.getElementById("prettyid-check-result");
+  el.textContent = res.available ? "✅ Available" : "❌ Already taken";
+  el.style.color = res.available ? "#16A34A" : "#EF4444";
+}
+async function purchasePrettyId() {
+  const value = document.getElementById("prettyid-input").value.trim();
+  if (!value) return showToast("Enter a value first");
+  try {
+    const res = await api("/profile/pretty-id/purchase", { method: "POST", body: { value } });
+    showToast(res.message);
+    await loadProfile();
+    loadPrettyId();
+  } catch (err) {
+    showToast(err.message);
+  }
+}
+
+// =================================================================
+// SETTINGS
+// =================================================================
+async function clearStorage() {
+  if (!confirm("Clear Messages and Live Record? Level and items will be kept.")) return;
+  try {
+    const res = await api("/profile/settings/clear-storage", { method: "POST" });
+    showToast(res.message);
+  } catch (err) {
+    showToast(err.message);
+  }
+}
+function confirmSignOut() {
+  if (!confirm("Are you sure you want to sign out?")) return;
+  localStorage.removeItem("amana_token");
+  location.reload();
+}
+async function savePin() {
+  const pin = document.getElementById("pin-input").value.trim();
+  if (!/^\d{6}$/.test(pin)) return showToast("PIN must be exactly 6 digits");
+  try {
+    const res = await api("/profile/security/pin", { method: "POST", body: { pin } });
+    showToast(res.message);
+    showScreen("screen-settings");
+  } catch (err) {
+    showToast(err.message);
+  }
+}
+async function requestPhoneOtp() {
+  const phone = document.getElementById("bindphone-phone").value.trim();
+  if (!phone) return showToast("Enter a phone number");
+  try {
+    const res = await api("/auth/otp/request", { method: "POST", body: { phone } });
+    showToast("Code sent" + (res.devCode ? ` (dev code: ${res.devCode})` : ""));
+    document.getElementById("bindphone-step1").classList.add("hidden");
+    document.getElementById("bindphone-step2").classList.remove("hidden");
+  } catch (err) {
+    showToast(err.message);
+  }
+}
+async function verifyPhoneOtp() {
+  const phone = document.getElementById("bindphone-phone").value.trim();
+  const code = document.getElementById("bindphone-code").value.trim();
+  if (!code) return showToast("Enter the code");
+  try {
+    await api("/auth/otp/verify", { method: "POST", body: { phone, code, userId: state.user.id } });
+    showToast("Phone number bound!");
+    await loadProfile();
+    showScreen("screen-settings");
+  } catch (err) {
+    showToast(err.message);
+  }
+}
+function openWebview(title, kind) {
+  document.getElementById("webview-title").textContent = title;
+  const body =
+    kind === "privacy"
+      ? "Amana Live respects your privacy. Full policy text to be added here before public launch."
+      : "By using Amana Live you agree to our community guidelines. Full terms to be added here before public launch.";
+  document.getElementById("webview-body").textContent = body;
+}
+
+// =================================================================
+// LEADERBOARD
+// =================================================================
+let lbType = "agency";
+let lbPeriod = "daily";
+const LB_TITLES = { agency: "Agency Leaderboard", giftwall: "Gift Wall Leaderboard", roomwall: "Room Wall Leaderboard", host: "Host Leaderboard" };
+const CROWNS = ["👑", "🥈", "🥉"];
+const PODIUM_ORDER = [1, 0, 2];
+
+function openLeaderboard(type) {
+  lbType = type;
+  lbPeriod = "daily";
+  document.getElementById("lb-title").textContent = LB_TITLES[type] || "Leaderboard";
+  document.querySelectorAll(".lb-period-tab").forEach((t, i) => t.classList.toggle("active", i === 0));
+  document.getElementById("lb-overlay").classList.add("open");
+  renderLeaderboard();
+}
+function closeLeaderboard() {
+  document.getElementById("lb-overlay").classList.remove("open");
+}
+function setLbPeriod(btn) {
+  document.querySelectorAll(".lb-period-tab").forEach((t) => t.classList.remove("active"));
+  btn.classList.add("active");
+  lbPeriod = btn.dataset.period;
+  renderLeaderboard();
+}
+async function renderLeaderboard() {
+  const res = await api(`/leaderboard/${lbType}?period=${lbPeriod}`);
+  document.getElementById("lb-reset-note").textContent = res.resetNote;
+  document.getElementById("lb-prize").textContent = "🏆 " + res.prize;
+  const ranking = res.ranking;
+
+  if (ranking.length === 0) {
+    document.getElementById("lb-podium").innerHTML = "";
+    document.getElementById("lb-list").innerHTML = `<p class="empty-state">No activity yet for this period.</p>`;
+    return;
+  }
+
+  const podium = ranking.slice(0, 3);
+  document.getElementById("lb-podium").innerHTML = PODIUM_ORDER.filter((i) => podium[i])
+    .map((i) => {
+      const p = podium[i];
+      return `
+      <div class="lb-podium-item rank${i + 1}">
+        <span>${CROWNS[i]}</span>
+        <div class="lb-podium-avatar">${p.name[0].toUpperCase()}</div>
+        <div class="lb-podium-name">${escapeHtml(p.name)}</div>
+        <div class="lb-podium-value">${p.value.toLocaleString()}</div>
+      </div>`;
+    })
+    .join("");
+
+  document.getElementById("lb-list").innerHTML = ranking
+    .slice(3)
+    .map(
+      (r) => `
+    <div class="lb-row">
+      <span class="lb-rank">${r.rank}</span>
+      <div class="lb-row-avatar">${r.name[0].toUpperCase()}</div>
+      <span class="lb-row-name">${escapeHtml(r.name)}</span>
+      <span class="lb-row-value">${r.value.toLocaleString()}</span>
+    </div>`
+    )
+    .join("");
+}
+
+// =================================================================
+// GO LIVE + AUDIO LIVE ROOM (real WebRTC over the real Socket.io signaling
+// already implemented server-side in server.js)
+// =================================================================
+const ICE_SERVERS = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
+let localStream = null;
+let peers = new Map(); // socketId -> RTCPeerConnection
+let currentStreamId = null;
+let currentStreamKey = null;
+let isHost = false;
+let micOn = true;
+let remoteAudioEl = null;
+
+function openSetup() {
+  document.getElementById("setup-username").textContent = "@" + state.user.username;
+  document.getElementById("stage-overlay").classList.add("open");
+  document.getElementById("screen-setup").classList.add("active");
+  document.getElementById("screen-room").classList.remove("active");
+}
+function closeStage() {
+  document.getElementById("stage-overlay").classList.remove("open");
+}
+
+async function startGoLive() {
+  const title = document.getElementById("setup-title").value.trim() || `${state.user.username}'s Live`;
+  try {
+    const res = await api("/streams/start", { method: "POST", body: { title, roomType: "stage" } });
+    currentStreamId = res.id;
+    currentStreamKey = res.streamKey;
+    isHost = true;
+
+    localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+    document.getElementById("host-avatar").textContent = state.user.username[0].toUpperCase();
+    document.getElementById("host-name-label").textContent = title + " (You)";
+    document.getElementById("room-title-text").textContent = title;
+
+    document.getElementById("screen-setup").classList.remove("active");
+    document.getElementById("screen-room").classList.add("active");
+    document.getElementById("room-feed").innerHTML = "";
+
+    joinRoomSocket();
+    loadGiftCatalog();
+  } catch (err) {
+    showToast(err.message || "Could not start Go Live (check mic permission)");
+  }
+}
+
+async function openRoomAsViewer(streamId) {
+  try {
+    const res = await api(`/streams/${streamId}`);
+    currentStreamId = res.stream.id;
+    currentStreamKey = res.stream.streamKey;
+    isHost = false;
+
+    document.getElementById("host-avatar").textContent = res.stream.hostUsername[0].toUpperCase();
+    document.getElementById("host-name-label").textContent = res.stream.title;
+    document.getElementById("room-title-text").textContent = res.stream.title;
+    document.getElementById("room-viewer-count").textContent = res.stream.viewerCount;
+
+    document.getElementById("stage-overlay").classList.add("open");
+    document.getElementById("screen-setup").classList.remove("active");
+    document.getElementById("screen-room").classList.add("active");
+
+    document.getElementById("room-feed").innerHTML = res.chatHistory
+      .map((c) => `<p class="room-feed-join"><b>${escapeHtml(c.username)}</b>: ${escapeHtml(c.message)}</p>`)
+      .join("");
+
+    joinRoomSocket();
+    loadGiftCatalog();
+  } catch (err) {
+    showToast(err.message);
+  }
+}
+
+function createPeerConnection(remoteSocketId) {
+  const pc = new RTCPeerConnection(ICE_SERVERS);
+  pc.onicecandidate = (e) => {
+    if (e.candidate) socket.emit("webrtc-ice-candidate", { to: remoteSocketId, candidate: e.candidate });
+  };
+  pc.ontrack = (e) => {
+    if (!remoteAudioEl) {
+      remoteAudioEl = document.createElement("audio");
+      remoteAudioEl.autoplay = true;
+      document.body.appendChild(remoteAudioEl);
+    }
+    remoteAudioEl.srcObject = e.streams[0];
+  };
+  peers.set(remoteSocketId, pc);
+  return pc;
+}
+
+function joinRoomSocket() {
+  if (!socket) connectSocket();
+  socket.emit("join-room", { streamKey: currentStreamKey });
+
+  socket.off("peer-joined").on("peer-joined", async ({ socketId }) => {
+    if (!isHost || !localStream) return;
+    const pc = createPeerConnection(socketId);
+    localStream.getTracks().forEach((track) => pc.addTrack(track, localStream));
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    socket.emit("webrtc-offer", { to: socketId, offer });
+  });
+
+  socket.off("webrtc-offer").on("webrtc-offer", async ({ from, offer }) => {
+    if (isHost) return;
+    const pc = createPeerConnection(from);
+    await pc.setRemoteDescription(new RTCSessionDescription(offer));
+    const answer = await pc.createAnswer();
+    await pc.setLocalDescription(answer);
+    socket.emit("webrtc-answer", { to: from, answer });
+  });
+
+  socket.off("webrtc-answer").on("webrtc-answer", async ({ from, answer }) => {
+    const pc = peers.get(from);
+    if (pc) await pc.setRemoteDescription(new RTCSessionDescription(answer));
+  });
+
+  socket.off("webrtc-ice-candidate").on("webrtc-ice-candidate", async ({ from, candidate }) => {
+    const pc = peers.get(from);
+    if (pc && candidate) {
+      try { await pc.addIceCandidate(new RTCIceCandidate(candidate)); } catch {}
+    }
+  });
+
+  socket.off("peer-left").on("peer-left", ({ socketId }) => {
+    const pc = peers.get(socketId);
+    if (pc) { pc.close(); peers.delete(socketId); }
+  });
+
+  socket.off("viewer-count").on("viewer-count", ({ count }) => {
+    document.getElementById("room-viewer-count").textContent = count;
+  });
+
+  socket.off("chat-message").on("chat-message", ({ username, message }) => {
+    pushFeedLine(`<b>${escapeHtml(username)}</b>: ${escapeHtml(message)}`, "room-feed-join");
+  });
+
+  socket.off("gift-received").on("gift-received", ({ fromUsername, giftName, icon, coinCost }) => {
+    pushFeedLine(`${escapeHtml(fromUsername)} sent ${icon} ${escapeHtml(giftName)} (${coinCost} coins)!`, "room-feed-gift");
+  });
+
+  socket.off("gift-error").on("gift-error", ({ error }) => showToast(error));
+}
+
+function pushFeedLine(html, cls) {
+  const feed = document.getElementById("room-feed");
+  const p = document.createElement("p");
+  p.className = cls;
+  p.innerHTML = html;
+  feed.appendChild(p);
+  feed.scrollTop = feed.scrollHeight;
+}
+
+function sendChat() {
+  const input = document.getElementById("room-hi-input");
+  const text = input.value.trim();
+  if (!text) return;
+  socket.emit("chat-message", { streamId: currentStreamId, streamKey: currentStreamKey, message: text });
+  input.value = "";
+}
+
+function toggleMic() {
+  micOn = !micOn;
+  const btn = document.getElementById("mic-btn");
+  btn.classList.toggle("mic-off", !micOn);
+  btn.textContent = micOn ? "🎤" : "🔇";
+  if (localStream) {
+    localStream.getAudioTracks().forEach((track) => (track.enabled = micOn));
+  }
+}
+
+// Seat-taking is presentation-only for now - there's no seats table/socket
+// event yet to sync who's sitting where across viewers. Wire that up as a
+// follow-up once real-time seat state is added server-side.
+function toggleMySeat(el) {
+  const ring = el.querySelector(".guest-ring");
+  if (ring.classList.contains("filled")) {
+    ring.classList.remove("filled");
+    ring.textContent = "👤";
+  } else {
+    ring.classList.add("filled");
+    ring.textContent = "Y";
+  }
+}
+
+async function loadGiftCatalog() {
+  const res = await api("/gifts");
+  document.getElementById("gift-popover").innerHTML = `<div class="gift-grid">${res.gifts
+    .map(
+      (g) => `<button class="gift-item" onclick="sendGift(${g.id})"><span class="gift-emoji">${g.icon}</span><span class="gift-name">${g.name}</span><span class="gift-cost">${g.coinCost}</span></button>`
+    )
+    .join("")}</div>`;
+}
+function sendGift(giftId) {
+  socket.emit("send-gift", { streamId: currentStreamId, streamKey: currentStreamKey, giftId });
+  togglePopover("gift-popover");
+}
+function togglePopover(id) {
+  document.getElementById(id).classList.toggle("open");
+}
+
+function leaveRoom() {
+  socket.emit("leave-room", { streamKey: currentStreamKey });
+  peers.forEach((pc) => pc.close());
+  peers.clear();
+  if (localStream) { localStream.getTracks().forEach((t) => t.stop()); localStream = null; }
+  if (remoteAudioEl) { remoteAudioEl.remove(); remoteAudioEl = null; }
+  document.getElementById("stage-overlay").classList.remove("open");
+  if (isHost) api(`/streams/${currentStreamId}/end`, { method: "POST" }).catch(() => {});
+  isHost = false;
+  currentStreamId = null;
+  currentStreamKey = null;
+}
+
+// =================================================================
+// utils
+// =================================================================
+function escapeHtml(str) {
+  const div = document.createElement("div");
+  div.textContent = str ?? "";
+  return div.innerHTML;
+}
+
+</script>
+</body>
+</html>
