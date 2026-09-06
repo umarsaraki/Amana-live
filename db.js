@@ -90,6 +90,54 @@ ALTER TABLE Users ADD COLUMN IF NOT EXISTS loginPinHash TEXT;
 ALTER TABLE Users ADD COLUMN IF NOT EXISTS clearedMessagesAt TIMESTAMPTZ;
 ALTER TABLE Users ADD COLUMN IF NOT EXISTS clearedLiveRecordAt TIMESTAMPTZ;
 
+-- MESSAGE feature -----------------------------------------------------
+CREATE TABLE IF NOT EXISTS Messages (
+  id SERIAL PRIMARY KEY,
+  senderId INTEGER NOT NULL REFERENCES Users(id),
+  receiverId INTEGER NOT NULL REFERENCES Users(id),
+  content TEXT,
+  giftId INTEGER REFERENCES Gifts(id),
+  createdAt TIMESTAMPTZ DEFAULT now(),
+  readAt TIMESTAMPTZ,
+  deletedForSender BOOLEAN DEFAULT FALSE,
+  deletedForReceiver BOOLEAN DEFAULT FALSE,
+  unreadFlag BOOLEAN DEFAULT FALSE
+);
+CREATE TABLE IF NOT EXISTS MessageReports (
+  id SERIAL PRIMARY KEY,
+  messageId INTEGER REFERENCES Messages(id),
+  reportedBy INTEGER REFERENCES Users(id),
+  reason TEXT,
+  createdAt TIMESTAMPTZ DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS ProfileViews (
+  id SERIAL PRIMARY KEY,
+  viewerId INTEGER NOT NULL REFERENCES Users(id),
+  viewedId INTEGER NOT NULL REFERENCES Users(id),
+  createdAt TIMESTAMPTZ DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS SquareMessages (
+  id SERIAL PRIMARY KEY,
+  userId INTEGER NOT NULL REFERENCES Users(id),
+  country TEXT NOT NULL,
+  content TEXT NOT NULL,
+  createdAt TIMESTAMPTZ DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS SystemMessages (
+  id SERIAL PRIMARY KEY,
+  userId INTEGER NOT NULL REFERENCES Users(id),
+  type TEXT NOT NULL, -- task | recharge | withdraw
+  content TEXT NOT NULL,
+  createdAt TIMESTAMPTZ DEFAULT now(),
+  readAt TIMESTAMPTZ
+);
+CREATE TABLE IF NOT EXISTS OfficialMessages (
+  id SERIAL PRIMARY KEY,
+  title TEXT NOT NULL,
+  content TEXT NOT NULL,
+  createdAt TIMESTAMPTZ DEFAULT now()
+);
+
 -- LIVE STREAMS -------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS LiveStreams (
   id SERIAL PRIMARY KEY,
