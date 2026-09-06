@@ -12,8 +12,15 @@ dotenv.config();
 
 const { Pool } = pg;
 
+// Render's PostgreSQL requires SSL on the External Database URL (and it's
+// harmless to also allow it on the Internal URL, which doesn't insist on
+// it). `rejectUnauthorized: false` is what Render's own docs recommend,
+// since their internal certs aren't in Node's public CA list.
 const pool = process.env.DATABASE_URL
-  ? new Pool({ connectionString: process.env.DATABASE_URL })
+  ? new Pool({
+      connectionString: process.env.DATABASE_URL,
+      ssl: { rejectUnauthorized: false },
+    })
   : new Pool({
       host: process.env.PGHOST || "localhost",
       port: Number(process.env.PGPORT) || 5432,
