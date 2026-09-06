@@ -280,6 +280,10 @@ app.post("/api/wallet/purchase", requireAuth, async (req, res) => {
     coins,
     JSON.stringify({ note: "Simulated purchase - no payment gateway configured" }),
   ]);
+  await query("INSERT INTO SystemMessages (userId, type, content) VALUES ($1, 'recharge', $2)", [
+    req.user.id,
+    `You recharged ${coins} coins successfully.`,
+  ]);
   res.json({ message: `Purchased ${coins} coins (simulated)` });
 });
 
@@ -294,6 +298,10 @@ app.post("/api/wallet/withdraw", requireAuth, async (req, res) => {
     req.user.id,
     -diamonds,
     JSON.stringify({ note: "Simulated withdrawal - no payout gateway configured" }),
+  ]);
+  await query("INSERT INTO SystemMessages (userId, type, content) VALUES ($1, 'withdraw', $2)", [
+    req.user.id,
+    `Your withdrawal request for ${diamonds} diamonds was submitted.`,
   ]);
   res.json({ message: `Withdrawal of ${diamonds} diamonds requested (simulated)` });
 });
@@ -599,6 +607,10 @@ app.post("/api/tasks/:day/complete", requireAuth, async (req, res) => {
     task.rewardcoins,
     JSON.stringify({ day }),
   ]);
+  await query("INSERT INTO SystemMessages (userId, type, content) VALUES ($1, 'task', $2)", [
+    userId,
+    `Day ${day} task complete! You earned ${task.rewardcoins} coins.`,
+  ]);
 
   res.json({ message: "Task completed", rewardCoins: task.rewardcoins });
 });
@@ -736,6 +748,9 @@ app.get("/api/users/:id/profile", requireAuth, async (req, res) => {
     [targetId]
   );
   if (result.rows.length === 0) return res.status(404).json({ error: "User not found" });
+  if (targetId !== req.user.id) {
+    await query("INSERT INTO ProfileViews (viewerId, viewedId) VALUES ($1, $2)", [req.user.id, targetId]);
+  }
   const row = result.rows[0];
   const [following, fans, friends, sentSum, receivedSum, isFollowing] = await Promise.all([
     query("SELECT COUNT(*) FROM Follows WHERE followerId = $1", [targetId]),
@@ -770,6 +785,8 @@ app.get("/api/users/:id/profile", requireAuth, async (req, res) => {
       friends: Number(friends.rows[0].count),
       coinsSent: Number(sentSum.rows[0].total),
       coinsReceived: Number(receivedSum.rows[0].total),
+      sendLevel: levelFromTotal(Number(sentSum.rows[0].total), SEND_STEP).level,
+      receiveLevel: levelFromTotal(Number(receivedSum.rows[0].total), RECEIVE_STEP).level,
     },
   });
 });
@@ -787,6 +804,178 @@ app.get("/api/users/search", requireAuth, async (req, res) => {
   res.json({
     users: result.rows.map((r) => ({ id: r.id, amanaId: r.amanaid, username: r.username, prettyId: r.prettyid })),
   });
+});
+
+// =================================================================
+// MESSAGE - Hello/Official/System tabs, Visit Notice, Square, Friends
+// =================================================================
+const HELLO_FREE_LIMIT = 3;
+async function areFriends(idA, idB) {
+  const r = await query(
+    `SELECT 1 FROM Follows a WHERE a.followerId=$1 AND a.followedId=$2
+     AND EXISTS (SELECT 1 FROM Follows b WHERE b.followerId=$2 AND b.followedId=$1)`,
+    [idA, idB]
+  );
+  return r.rows.length > 0;
+}
+
+app.get("/api/messages/conversations", requireAuth, async (req, res) => {
+  const type = req.query.type === "friends" ? "friends" : "hello";
+  const me = req.user.id;
+  const result = await query(
+    `SELECT DISTINCT ON (other) other, u.username, u.prettyId, m.content AS lastContent, m.createdAt AS lastAt,
+       (SELECT COUNT(*) FROM Messages WHERE senderId = other AND receiverId = $1 AND readAt IS NULL AND deletedForReceiver = FALSE) AS unread
+     FROM (
+       SELECT CASE WHEN senderId = $1 THEN receiverId ELSE senderId END AS other, content, createdAt
+       FROM Messages WHERE (senderId = $1 OR receiverId = $1)
+         AND NOT ((senderId = $1 AND deletedForSender) OR (receiverId = $1 AND deletedForReceiver))
+       ORDER BY createdAt DESC
+     ) m
+     JOIN Users u ON u.id = m.other
+     ORDER BY other, m.createdAt DESC`,
+    [me]
+  );
+  const filtered = [];
+  for (const row of result.rows) {
+    const friend = await areFriends(me, row.other);
+    if ((type === "friends") === friend) filtered.push(row);
+  }
+  res.json({
+    conversations: filtered.map((r) => ({
+      userId: r.other,
+      username: r.username,
+      prettyId: r.prettyid,
+      lastMessage: r.lastcontent,
+      lastAt: r.lastat,
+      unread: Number(r.unread),
+    })),
+  });
+});
+
+app.get("/api/messages/thread/:userId", requireAuth, async (req, res) => {
+  const otherId = Number(req.params.userId);
+  const me = req.user.id;
+  const result = await query(
+    `SELECT m.*, g.name AS giftName FROM Messages m LEFT JOIN Gifts g ON g.id = m.giftId
+     WHERE ((senderId = $1 AND receiverId = $2 AND deletedForSender = FALSE)
+        OR (senderId = $2 AND receiverId = $1 AND deletedForReceiver = FALSE))
+     ORDER BY createdAt ASC LIMIT 200`,
+    [me, otherId]
+  );
+  await query("UPDATE Messages SET readAt = now() WHERE senderId = $1 AND receiverId = $2 AND readAt IS NULL", [otherId, me]);
+  res.json({
+    messages: result.rows.map((m) => ({
+      id: m.id,
+      senderId: m.senderid,
+      receiverId: m.receiverid,
+      content: m.content,
+      giftName: m.giftname,
+      createdAt: m.createdat,
+    })),
+  });
+});
+
+app.post("/api/messages/send", requireAuth, async (req, res) => {
+  const { receiverId, content, giftId } = req.body;
+  const me = req.user.id;
+  if (!receiverId || (!content && !giftId)) return res.status(400).json({ error: "receiverId and content or giftId are required" });
+  const friend = await areFriends(me, receiverId);
+  if (!friend) {
+    const sentCount = await query("SELECT COUNT(*) FROM Messages WHERE senderId = $1 AND receiverId = $2", [me, receiverId]);
+    if (Number(sentCount.rows[0].count) >= HELLO_FREE_LIMIT) {
+      return res.status(400).json({ error: `You've used your ${HELLO_FREE_LIMIT} free Hello Messages to this person. Become friends to keep chatting.` });
+    }
+  }
+  if (giftId) {
+    const walletResult = await query("SELECT coinBalance FROM Wallets WHERE userId = $1", [me]);
+    const giftResult = await query("SELECT id, name, coinCost FROM Gifts WHERE id = $1", [giftId]);
+    if (giftResult.rows.length === 0) return res.status(404).json({ error: "Gift not found" });
+    const gift = giftResult.rows[0];
+    if (!walletResult.rows[0] || walletResult.rows[0].coinbalance < gift.coincost) return res.status(400).json({ error: "Insufficient coins" });
+    await query("UPDATE Wallets SET coinBalance = coinBalance - $1 WHERE userId = $2", [gift.coincost, me]);
+    await query("INSERT INTO Transactions (userId, type, amount, meta) VALUES ($1,'gift_sent',$2,$3)", [
+      me, -gift.coincost, JSON.stringify({ giftName: gift.name, via: "message" }),
+    ]);
+    await query("INSERT INTO Transactions (userId, type, amount, meta) VALUES ($1,'gift_received',$2,$3)", [
+      receiverId, gift.coincost, JSON.stringify({ giftName: gift.name, via: "message" }),
+    ]);
+  }
+  const result = await query(
+    "INSERT INTO Messages (senderId, receiverId, content, giftId) VALUES ($1,$2,$3,$4) RETURNING id, createdAt",
+    [me, receiverId, content || null, giftId || null]
+  );
+  res.json({ message: "Sent", id: result.rows[0].id, createdAt: result.rows[0].createdat });
+});
+
+app.patch("/api/messages/thread/:userId/mark-unread", requireAuth, async (req, res) => {
+  await query(
+    `UPDATE Messages SET readAt = NULL WHERE id = (
+       SELECT id FROM Messages WHERE senderId = $1 AND receiverId = $2 ORDER BY createdAt DESC LIMIT 1
+     )`,
+    [Number(req.params.userId), req.user.id]
+  );
+  res.json({ message: "Marked as unread" });
+});
+
+app.delete("/api/messages/thread/:userId", requireAuth, async (req, res) => {
+  const otherId = Number(req.params.userId);
+  const me = req.user.id;
+  await query("UPDATE Messages SET deletedForSender = TRUE WHERE senderId = $1 AND receiverId = $2", [me, otherId]);
+  await query("UPDATE Messages SET deletedForReceiver = TRUE WHERE senderId = $1 AND receiverId = $2", [otherId, me]);
+  res.json({ message: "Conversation deleted" });
+});
+
+app.post("/api/messages/:id/report", requireAuth, async (req, res) => {
+  const { reason } = req.body;
+  await query("INSERT INTO MessageReports (messageId, reportedBy, reason) VALUES ($1,$2,$3)", [
+    Number(req.params.id), req.user.id, reason || "Not specified",
+  ]);
+  res.json({ message: "Reported. Our team will review this." });
+});
+
+app.get("/api/messages/visits", requireAuth, async (req, res) => {
+  const result = await query(
+    `SELECT DISTINCT ON (viewerId) viewerId, u.username, u.prettyId, pv.createdAt
+     FROM ProfileViews pv JOIN Users u ON u.id = pv.viewerId
+     WHERE pv.viewedId = $1 ORDER BY viewerId, pv.createdAt DESC`,
+    [req.user.id]
+  );
+  const rows = result.rows.sort((a, b) => new Date(b.createdat) - new Date(a.createdat));
+  res.json({ visits: rows.map((r) => ({ userId: r.viewerid, username: r.username, prettyId: r.prettyid, viewedAt: r.createdat })) });
+});
+
+app.get("/api/messages/square", requireAuth, async (req, res) => {
+  const userResult = await query("SELECT country FROM Users WHERE id = $1", [req.user.id]);
+  const country = req.query.country || userResult.rows[0].country;
+  if (!country) return res.json({ country: null, messages: [] });
+  const result = await query(
+    `SELECT sm.id, sm.content, sm.createdAt, u.username FROM SquareMessages sm
+     JOIN Users u ON u.id = sm.userId WHERE sm.country = $1 ORDER BY sm.createdAt DESC LIMIT 100`,
+    [country]
+  );
+  res.json({ country, messages: result.rows.reverse().map((r) => ({ id: r.id, username: r.username, content: r.content, createdAt: r.createdat })) });
+});
+app.post("/api/messages/square", requireAuth, async (req, res) => {
+  const { content } = req.body;
+  if (!content) return res.status(400).json({ error: "content is required" });
+  const userResult = await query("SELECT country FROM Users WHERE id = $1", [req.user.id]);
+  const country = userResult.rows[0].country;
+  if (!country) return res.status(400).json({ error: "Set your country in Edit Profile before posting to Square" });
+  await query("INSERT INTO SquareMessages (userId, country, content) VALUES ($1,$2,$3)", [req.user.id, country, content]);
+  res.json({ message: "Posted" });
+});
+
+app.get("/api/messages/official", requireAuth, async (req, res) => {
+  const result = await query("SELECT id, title, content, createdAt FROM OfficialMessages ORDER BY createdAt DESC LIMIT 50");
+  res.json({ messages: result.rows });
+});
+
+app.get("/api/messages/system", requireAuth, async (req, res) => {
+  const result = await query("SELECT id, type, content, createdAt, readAt FROM SystemMessages WHERE userId = $1 ORDER BY createdAt DESC LIMIT 100", [
+    req.user.id,
+  ]);
+  await query("UPDATE SystemMessages SET readAt = now() WHERE userId = $1 AND readAt IS NULL", [req.user.id]);
+  res.json({ messages: result.rows });
 });
 
 app.get("/api/follow/stories", requireAuth, async (req, res) => {
