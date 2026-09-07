@@ -274,17 +274,22 @@ app.get("/api/wallet/transactions", requireAuth, async (req, res) => {
 app.post("/api/wallet/purchase", requireAuth, async (req, res) => {
   const { coins } = req.body;
   if (!Number.isInteger(coins) || coins <= 0) return res.status(400).json({ error: "coins must be a positive integer" });
-  await query("UPDATE Wallets SET coinBalance = coinBalance + $1, updatedAt = now() WHERE userId = $2", [coins, req.user.id]);
+  const vip = await getVipInfo(req.user.id);
+  const levels = vip.vipLevel ? await getVipLevels() : [];
+  const discountPct = vip.vipLevel ? levels.find((l) => l.level === vip.vipLevel)?.purchaseDiscountPct || 0 : 0;
+  const bonusCoins = Math.round(coins * (discountPct / 100));
+  const totalCoins = coins + bonusCoins;
+  await query("UPDATE Wallets SET coinBalance = coinBalance + $1, updatedAt = now() WHERE userId = $2", [totalCoins, req.user.id]);
   await query("INSERT INTO Transactions (userId, type, amount, meta) VALUES ($1, 'purchase', $2, $3)", [
     req.user.id,
-    coins,
-    JSON.stringify({ note: "Simulated purchase - no payment gateway configured" }),
+    totalCoins,
+    JSON.stringify({ note: "Simulated purchase - no payment gateway configured", basePurchase: coins, vipBonus: bonusCoins }),
   ]);
   await query("INSERT INTO SystemMessages (userId, type, content) VALUES ($1, 'recharge', $2)", [
     req.user.id,
-    `You recharged ${coins} coins successfully.`,
+    bonusCoins > 0 ? `You recharged ${coins} coins (+${bonusCoins} VIP bonus).` : `You recharged ${coins} coins successfully.`,
   ]);
-  res.json({ message: `Purchased ${coins} coins (simulated)` });
+  res.json({ message: `Purchased ${totalCoins} coins${bonusCoins ? ` (includes ${bonusCoins} VIP bonus)` : ""} (simulated)` });
 });
 
 app.post("/api/wallet/withdraw", requireAuth, async (req, res) => {
@@ -294,16 +299,20 @@ app.post("/api/wallet/withdraw", requireAuth, async (req, res) => {
   const wallet = result.rows[0];
   if (!wallet || wallet.diamondbalance < diamonds) return res.status(400).json({ error: "Insufficient diamond balance" });
   await query("UPDATE Wallets SET diamondBalance = diamondBalance - $1, updatedAt = now() WHERE userId = $2", [diamonds, req.user.id]);
+  const vip = await getVipInfo(req.user.id);
+  const levels = vip.vipLevel ? await getVipLevels() : [];
+  const userPct = vip.vipLevel ? levels.find((l) => l.level === vip.vipLevel)?.exchangeUserPct || 70 : 70;
+  const usdValue = ((diamonds / 100000) * userPct) / 100;
   await query("INSERT INTO Transactions (userId, type, amount, meta) VALUES ($1, 'withdrawal', $2, $3)", [
     req.user.id,
     -diamonds,
-    JSON.stringify({ note: "Simulated withdrawal - no payout gateway configured" }),
+    JSON.stringify({ note: "Simulated withdrawal - no payout gateway configured", exchangeUserPct: userPct, usdValue }),
   ]);
   await query("INSERT INTO SystemMessages (userId, type, content) VALUES ($1, 'withdraw', $2)", [
     req.user.id,
-    `Your withdrawal request for ${diamonds} diamonds was submitted.`,
+    `Your withdrawal request for ${diamonds} diamonds (≈$${usdValue.toFixed(2)} at ${userPct}% VIP rate) was submitted.`,
   ]);
-  res.json({ message: `Withdrawal of ${diamonds} diamonds requested (simulated)` });
+  res.json({ message: `Withdrawal of ${diamonds} diamonds (≈$${usdValue.toFixed(2)}) requested (simulated)` });
 });
 
 // =================================================================
@@ -327,6 +336,14 @@ async function sendGift({ senderId, streamId, giftId }) {
   const senderWallet = walletResult.rows[0];
   if (!senderWallet || senderWallet.coinbalance < gift.coincost) throw new Error("Insufficient coin balance");
 
+  // Snapshot totals before the gift so we can tell if this gift crosses a
+  // Room / Send / Receive level boundary (levels never reset, cosmetics only).
+  const [roomBefore, senderBefore, receiverBefore] = await Promise.all([
+    getRoomCoinsTotal(stream.hostid),
+    getSendReceiveTotals(senderId),
+    getSendReceiveTotals(stream.hostid),
+  ]);
+
   // 50/50 split: half to the host as diamonds, the other half is platform commission
   const hostShare = Math.floor(gift.coincost / 2);
 
@@ -345,6 +362,13 @@ async function sendGift({ senderId, streamId, giftId }) {
   ]);
 
   await query("UPDATE LiveStreams SET totalCoinsEarned = totalCoinsEarned + $1 WHERE id = $2", [gift.coincost, streamId]);
+
+  // Fire level-up notifications (no-op unless a bracket/level was actually crossed).
+  await Promise.all([
+    notifyIfLeveledUp(stream.hostid, "Room", "RoomLevelTiers", roomBefore, roomBefore + gift.coincost, "task"),
+    notifyIfLeveledUp(senderId, "Send Level", "SendLevelTiers", senderBefore.sent, senderBefore.sent + gift.coincost, "task"),
+    notifyIfLeveledUp(stream.hostid, "Receive Level", "ReceiveLevelTiers", receiverBefore.received, receiverBefore.received + hostShare, "task"),
+  ]);
 
   return { hostId: stream.hostid, giftName: gift.name, icon: gift.icon, coinCost: gift.coincost, hostShare };
 }
@@ -395,14 +419,19 @@ app.get("/api/profile/stats", requireAuth, async (req, res) => {
   ]);
   const coinsSent = Number(sentSum.rows[0].total);
   const coinsReceived = Number(receivedSum.rows[0].total);
+  const vip = await getVipInfo(uid);
+  const [sendTiers, receiveTiers] = await Promise.all([getTiers("SendLevelTiers"), getTiers("ReceiveLevelTiers")]);
   res.json({
     following: Number(following.rows[0].count),
     fans: Number(fans.rows[0].count),
     friends: Number(friends.rows[0].count),
     coinsSent,
     coinsReceived,
-    sendLevel: levelFromTotal(coinsSent, SEND_STEP),
-    receiveLevel: levelFromTotal(coinsReceived, RECEIVE_STEP),
+    sendLevel: computeLevelStatus(coinsSent, sendTiers),
+    receiveLevel: computeLevelStatus(coinsReceived, receiveTiers),
+    vipLevel: vip.vipLevel,
+    vipTitle: vip.vipTitle,
+    vipBadgeColor: vip.vipBadgeColor,
   });
 });
 
@@ -765,6 +794,8 @@ app.get("/api/users/:id/profile", requireAuth, async (req, res) => {
     query("SELECT COALESCE(SUM(amount),0) AS total FROM Transactions WHERE userId = $1 AND type = 'gift_received'", [targetId]),
     query("SELECT 1 FROM Follows WHERE followerId = $1 AND followedId = $2", [req.user.id, targetId]),
   ]);
+  const vip = await getVipInfo(targetId);
+  const [sendTiers2, receiveTiers2] = await Promise.all([getTiers("SendLevelTiers"), getTiers("ReceiveLevelTiers")]);
   res.json({
     id: row.id,
     amanaId: row.amanaid,
@@ -777,6 +808,9 @@ app.get("/api/users/:id/profile", requireAuth, async (req, res) => {
     isHostBadge: row.ishostbadge,
     isDbBadge: row.isdbbadge,
     prettyId: row.prettyid,
+    vipLevel: vip.vipLevel,
+    vipTitle: vip.vipTitle,
+    vipBadgeColor: vip.vipBadgeColor,
     isSelf: targetId === req.user.id,
     isFollowing: isFollowing.rows.length > 0,
     stats: {
@@ -785,8 +819,8 @@ app.get("/api/users/:id/profile", requireAuth, async (req, res) => {
       friends: Number(friends.rows[0].count),
       coinsSent: Number(sentSum.rows[0].total),
       coinsReceived: Number(receivedSum.rows[0].total),
-      sendLevel: levelFromTotal(Number(sentSum.rows[0].total), SEND_STEP).level,
-      receiveLevel: levelFromTotal(Number(receivedSum.rows[0].total), RECEIVE_STEP).level,
+      sendLevel: computeLevelStatus(Number(sentSum.rows[0].total), sendTiers2).level,
+      receiveLevel: computeLevelStatus(Number(receivedSum.rows[0].total), receiveTiers2).level,
     },
   });
 });
@@ -892,12 +926,17 @@ app.post("/api/messages/send", requireAuth, async (req, res) => {
     if (giftResult.rows.length === 0) return res.status(404).json({ error: "Gift not found" });
     const gift = giftResult.rows[0];
     if (!walletResult.rows[0] || walletResult.rows[0].coinbalance < gift.coincost) return res.status(400).json({ error: "Insufficient coins" });
+    const [senderBefore, receiverBefore] = await Promise.all([getSendReceiveTotals(me), getSendReceiveTotals(receiverId)]);
     await query("UPDATE Wallets SET coinBalance = coinBalance - $1 WHERE userId = $2", [gift.coincost, me]);
     await query("INSERT INTO Transactions (userId, type, amount, meta) VALUES ($1,'gift_sent',$2,$3)", [
       me, -gift.coincost, JSON.stringify({ giftName: gift.name, via: "message" }),
     ]);
     await query("INSERT INTO Transactions (userId, type, amount, meta) VALUES ($1,'gift_received',$2,$3)", [
       receiverId, gift.coincost, JSON.stringify({ giftName: gift.name, via: "message" }),
+    ]);
+    await Promise.all([
+      notifyIfLeveledUp(me, "Send Level", "SendLevelTiers", senderBefore.sent, senderBefore.sent + gift.coincost, "task"),
+      notifyIfLeveledUp(receiverId, "Receive Level", "ReceiveLevelTiers", receiverBefore.received, receiverBefore.received + gift.coincost, "task"),
     ]);
   }
   const result = await query(
@@ -976,6 +1015,385 @@ app.get("/api/messages/system", requireAuth, async (req, res) => {
   ]);
   await query("UPDATE SystemMessages SET readAt = now() WHERE userId = $1 AND readAt IS NULL", [req.user.id]);
   res.json({ messages: result.rows });
+});
+
+// =================================================================
+// LEVEL SYSTEM - Room / Send / Receive (cosmetics only, never resets)
+// =================================================================
+// Simple in-process cache so 1000 concurrent users don't re-hit the DB for
+// tier tables on every gift/profile load. Cleared whenever an admin edits a
+// tier (see the PATCH endpoints below).
+const tierCache = {};
+async function getTiers(table) {
+  if (tierCache[table]) return tierCache[table];
+  const result = await query(`SELECT * FROM ${table} ORDER BY tierStart ASC`);
+  const tiers = result.rows.map((r) => ({
+    tierStart: r.tierstart,
+    tierEnd: r.tierend,
+    threshold: Number(r.threshold),
+    colorHex: r.colorhex,
+    name: r.name,
+    effect: r.effect,
+  }));
+  tierCache[table] = tiers;
+  return tiers;
+}
+function invalidateTierCache(table) {
+  delete tierCache[table];
+}
+// Interpolates a smooth per-level position (not just per-bracket) within
+// whichever bracket the total currently falls into, e.g. "Lv.25: 300M/500M".
+function computeLevelStatus(total, tiers) {
+  let bracket = tiers[0];
+  for (const t of tiers) if (total >= t.threshold) bracket = t;
+  const bracketIndex = tiers.indexOf(bracket);
+  const next = tiers[bracketIndex + 1];
+  const levelsInBracket = bracket.tierEnd - bracket.tierStart + 1;
+  const bracketRange = next ? next.threshold - bracket.threshold : 0;
+  let level = bracket.tierStart;
+  let progressPct = 100;
+  let coinsToNextLevel = 0;
+  if (next && bracketRange > 0) {
+    const intoBracket = total - bracket.threshold;
+    const levelOffset = Math.min(levelsInBracket - 1, Math.floor((intoBracket / bracketRange) * levelsInBracket));
+    level = bracket.tierStart + levelOffset;
+    const levelSpan = bracketRange / levelsInBracket;
+    const levelStartCoins = bracket.threshold + levelOffset * levelSpan;
+    progressPct = Math.min(100, Math.round(((total - levelStartCoins) / levelSpan) * 100));
+    coinsToNextLevel = Math.max(0, Math.round(levelStartCoins + levelSpan - total));
+  } else if (!next) {
+    level = bracket.tierEnd;
+  }
+  return {
+    level,
+    total,
+    tierName: bracket.name,
+    colorHex: bracket.colorHex,
+    effect: bracket.effect,
+    progressPct,
+    coinsToNextLevel,
+    nextTierName: next ? next.name : null,
+    nextTierAtLevel: next ? next.tierStart : null,
+    unlockedTierStarts: tiers.filter((t) => t.threshold <= total).map((t) => t.tierStart),
+  };
+}
+async function getRoomCoinsTotal(hostId) {
+  const r = await query("SELECT COALESCE(SUM(totalCoinsEarned),0) AS total FROM LiveStreams WHERE hostId = $1", [hostId]);
+  return Number(r.rows[0].total);
+}
+async function getSendReceiveTotals(userId) {
+  const [sent, received] = await Promise.all([
+    query("SELECT COALESCE(SUM(-amount),0) AS total FROM Transactions WHERE userId = $1 AND type = 'gift_sent'", [userId]),
+    query("SELECT COALESCE(SUM(amount),0) AS total FROM Transactions WHERE userId = $1 AND type = 'gift_received'", [userId]),
+  ]);
+  return { sent: Number(sent.rows[0].total), received: Number(received.rows[0].total) };
+}
+// Called after a gift changes someone's totals; notifies only on an actual
+// level-up (bracket or level boundary crossed), never on every gift.
+async function notifyIfLeveledUp(userId, kind, table, beforeTotal, afterTotal, messageType) {
+  const tiers = await getTiers(table);
+  const before = computeLevelStatus(beforeTotal, tiers);
+  const after = computeLevelStatus(afterTotal, tiers);
+  if (after.level > before.level) {
+    const unlockedNew = after.tierName !== before.tierName;
+    const content = unlockedNew
+      ? `Level up! ${kind} ${before.level} -> ${after.level}. ${after.tierName} unlocked!`
+      : `Level up! ${kind} ${before.level} -> ${after.level}.`;
+    await query("INSERT INTO SystemMessages (userId, type, content) VALUES ($1,$2,$3)", [userId, messageType, content]);
+  }
+}
+
+app.get("/api/levels/room", requireAuth, async (req, res) => {
+  const tiers = await getTiers("RoomLevelTiers");
+  const total = await getRoomCoinsTotal(req.user.id);
+  const status = computeLevelStatus(total, tiers);
+  const userResult = await query("SELECT selectedRoomCoverTier FROM Users WHERE id = $1", [req.user.id]);
+  res.json({ status, tiers, selectedCoverTier: userResult.rows[0].selectedroomcovertier });
+});
+app.post("/api/levels/room/select-cover", requireAuth, async (req, res) => {
+  const { tierStart } = req.body;
+  const total = await getRoomCoinsTotal(req.user.id);
+  const tiers = await getTiers("RoomLevelTiers");
+  const status = computeLevelStatus(total, tiers);
+  if (!status.unlockedTierStarts.includes(tierStart)) return res.status(400).json({ error: "That Room Cover isn't unlocked yet" });
+  await query("UPDATE Users SET selectedRoomCoverTier = $1 WHERE id = $2", [tierStart, req.user.id]);
+  res.json({ message: "Room Cover updated" });
+});
+app.get("/api/levels/send", requireAuth, async (req, res) => {
+  const tiers = await getTiers("SendLevelTiers");
+  const { sent } = await getSendReceiveTotals(req.user.id);
+  res.json({ status: computeLevelStatus(sent, tiers), tiers });
+});
+app.get("/api/levels/receive", requireAuth, async (req, res) => {
+  const tiers = await getTiers("ReceiveLevelTiers");
+  const { received } = await getSendReceiveTotals(req.user.id);
+  res.json({ status: computeLevelStatus(received, tiers), tiers });
+});
+// Admin-style tier edits - no admin auth system exists yet (see VIP section
+// note below); locking this down is a prerequisite before public launch.
+app.patch("/api/levels/:kind/:tierStart", requireAuth, async (req, res) => {
+  const tableMap = { room: "RoomLevelTiers", send: "SendLevelTiers", receive: "ReceiveLevelTiers" };
+  const table = tableMap[req.params.kind];
+  if (!table) return res.status(400).json({ error: "kind must be room, send, or receive" });
+  const { threshold, name, colorHex, effect } = req.body;
+  const fields = [];
+  const params = [];
+  let i = 1;
+  if (threshold !== undefined) { fields.push(`threshold = $${i++}`); params.push(threshold); }
+  if (name !== undefined) { fields.push(`name = $${i++}`); params.push(name); }
+  if (colorHex !== undefined) { fields.push(`colorHex = $${i++}`); params.push(colorHex); }
+  if (effect !== undefined && table === "RoomLevelTiers") { fields.push(`effect = $${i++}`); params.push(effect); }
+  if (fields.length === 0) return res.status(400).json({ error: "Nothing to update" });
+  params.push(Number(req.params.tierStart));
+  await query(`UPDATE ${table} SET ${fields.join(", ")} WHERE tierStart = $${i}`, params);
+  invalidateTierCache(table);
+  res.json({ message: "Tier updated" });
+});
+
+// =================================================================
+// VIP SYSTEM - levels, monthly spend, daily claim, priority sorting
+// =================================================================
+async function getVipLevels() {
+  const result = await query("SELECT * FROM VipLevels ORDER BY level ASC");
+  return result.rows.map((r) => ({
+    level: r.level,
+    title: r.title,
+    spendRequired: Number(r.spendrequired),
+    dailyClaimCoins: r.dailyclaimcoins,
+    badgeColor: r.badgecolor,
+    purchaseDiscountPct: r.purchasediscountpct,
+    exchangeUserPct: r.exchangeuserpct,
+  }));
+}
+async function getMonthlySpend(userId) {
+  const result = await query(
+    `SELECT COALESCE(SUM(-amount),0) AS total FROM Transactions
+     WHERE userId = $1 AND amount < 0 AND type IN ('gift_sent','purchase')
+     AND createdAt >= date_trunc('month', now())`,
+    [userId]
+  );
+  return Number(result.rows[0].total);
+}
+function vipLevelForSpend(spend, levels) {
+  let current = null;
+  for (const lv of levels) if (spend >= lv.spendRequired) current = lv;
+  return current; // null = no VIP level yet
+}
+// Reusable helper other sections (Moments, Profile, Leaderboard) can call.
+async function getVipInfo(userId) {
+  const levels = await getVipLevels();
+  const spend = await getMonthlySpend(userId);
+  const current = vipLevelForSpend(spend, levels);
+  return { vipLevel: current ? current.level : 0, vipTitle: current ? current.title : null, vipBadgeColor: current ? current.badgeColor : null };
+}
+
+app.get("/api/vip/status", requireAuth, async (req, res) => {
+  const levels = await getVipLevels();
+  const spend = await getMonthlySpend(req.user.id);
+  const current = vipLevelForSpend(spend, levels);
+  const next = levels.find((lv) => lv.level === (current ? current.level + 1 : 1));
+  const userResult = await query("SELECT vipLastClaimAt FROM Users WHERE id = $1", [req.user.id]);
+  const lastClaim = userResult.rows[0].viplastclaimat;
+  const msSinceClaim = lastClaim ? Date.now() - new Date(lastClaim).getTime() : Infinity;
+  const cooldownMs = 24 * 60 * 60 * 1000;
+  const canClaim = !!current && msSinceClaim >= cooldownMs;
+  res.json({
+    currentLevel: current ? current.level : 0,
+    currentTitle: current ? current.title : "Not a VIP yet",
+    badgeColor: current ? current.badgeColor : null,
+    spentThisMonth: spend,
+    nextLevel: next ? { level: next.level, title: next.title, spendRequired: next.spendRequired, coinsNeeded: Math.max(0, next.spendRequired - spend) } : null,
+    progressPct: next ? Math.min(100, Math.round((spend / next.spendRequired) * 100)) : 100,
+    dailyClaimCoins: current ? current.dailyClaimCoins : 0,
+    canClaim,
+    msUntilNextClaim: canClaim || !current ? 0 : Math.max(0, cooldownMs - msSinceClaim),
+    purchaseDiscountPct: current ? current.purchaseDiscountPct : 0,
+    exchangeUserPct: current ? current.exchangeUserPct : 70,
+  });
+});
+
+app.post("/api/vip/claim", requireAuth, async (req, res) => {
+  const levels = await getVipLevels();
+  const spend = await getMonthlySpend(req.user.id);
+  const current = vipLevelForSpend(spend, levels);
+  if (!current) return res.status(400).json({ error: "You are not a VIP member yet" });
+  const userResult = await query("SELECT vipLastClaimAt FROM Users WHERE id = $1", [req.user.id]);
+  const lastClaim = userResult.rows[0].viplastclaimat;
+  const msSinceClaim = lastClaim ? Date.now() - new Date(lastClaim).getTime() : Infinity;
+  if (msSinceClaim < 24 * 60 * 60 * 1000) return res.status(400).json({ error: "You already claimed today. Come back after 24 hours." });
+  await query("UPDATE Wallets SET coinBalance = coinBalance + $1, updatedAt = now() WHERE userId = $2", [current.dailyClaimCoins, req.user.id]);
+  await query("UPDATE Users SET vipLastClaimAt = now() WHERE id = $1", [req.user.id]);
+  await query("INSERT INTO Transactions (userId, type, amount, meta) VALUES ($1,'vip_daily_claim',$2,$3)", [
+    req.user.id, current.dailyClaimCoins, JSON.stringify({ vipLevel: current.level }),
+  ]);
+  await query("INSERT INTO SystemMessages (userId, type, content) VALUES ($1,'recharge',$2)", [
+    req.user.id, `VIP ${current.level} daily claim: +${current.dailyClaimCoins} coins.`,
+  ]);
+  res.json({ message: `Claimed ${current.dailyClaimCoins} coins`, coins: current.dailyClaimCoins });
+});
+
+app.get("/api/vip/levels", async (req, res) => {
+  res.json({ levels: await getVipLevels() });
+});
+
+// Level-config update - no dedicated admin login exists yet in this build,
+// so this is left callable but should be locked behind a real Admin role
+// before this app goes live to the public.
+app.patch("/api/vip/levels/:level", requireAuth, async (req, res) => {
+  const { spendRequired, dailyClaimCoins } = req.body;
+  const fields = [];
+  const params = [];
+  let i = 1;
+  if (spendRequired !== undefined) { fields.push(`spendRequired = $${i++}`); params.push(spendRequired); }
+  if (dailyClaimCoins !== undefined) { fields.push(`dailyClaimCoins = $${i++}`); params.push(dailyClaimCoins); }
+  if (fields.length === 0) return res.status(400).json({ error: "Nothing to update" });
+  params.push(Number(req.params.level));
+  await query(`UPDATE VipLevels SET ${fields.join(", ")} WHERE level = $${i}`, params);
+  res.json({ message: "VIP level updated" });
+});
+
+// =================================================================
+// MOMENTS - Discovery/New/Follow feed, post cards, image viewer data
+// =================================================================
+async function fetchMomentUsername(text) {
+  // Pulls @username tokens out of a caption so they can be tagged.
+  const matches = text.match(/@([a-zA-Z0-9_]+)/g) || [];
+  return [...new Set(matches.map((m) => m.slice(1)))];
+}
+
+app.post("/api/moments", requireAuth, async (req, res) => {
+  const { text, images } = req.body;
+  const imgArr = Array.isArray(images) ? images.slice(0, 9) : [];
+  if (!text && imgArr.length === 0) return res.status(400).json({ error: "Add text or at least one image" });
+  const result = await query("INSERT INTO Moments (userId, text, images) VALUES ($1,$2,$3) RETURNING id, createdAt", [
+    req.user.id,
+    text || null,
+    JSON.stringify(imgArr),
+  ]);
+  const momentId = result.rows[0].id;
+  const mentionedUsernames = await fetchMomentUsername(text || "");
+  if (mentionedUsernames.length) {
+    const tagged = await query("SELECT id FROM Users WHERE username = ANY($1)", [mentionedUsernames]);
+    for (const row of tagged.rows) {
+      await query("INSERT INTO MomentTags (momentId, userId) VALUES ($1,$2) ON CONFLICT DO NOTHING", [momentId, row.id]);
+    }
+  }
+  res.json({ message: "Posted", id: momentId, createdAt: result.rows[0].createdat });
+});
+
+function momentCardRow(row, meId) {
+  return {
+    id: row.id,
+    userId: row.userid,
+    username: row.username,
+    prettyId: row.prettyid,
+    agencyId: row.agencyid,
+    isHostBadge: row.ishostbadge,
+    isDbBadge: row.isdbbadge,
+    phoneVerified: row.phoneverified,
+    vipLevel: row.viplevel || 0,
+    vipBadgeColor: row.vipbadgecolor,
+    // Simple activity-based "Social Level" S1-S10 (posts + engagement received)
+    socialLevel: Math.min(10, Math.floor((Number(row.postcount) * 5 + Number(row.likesreceived) + Number(row.commentsreceived) * 2) / 50) + 1),
+    text: row.text,
+    images: row.images || [],
+    createdAt: row.createdat,
+    likeCount: Number(row.likecount),
+    commentCount: Number(row.commentcount),
+    isLiked: row.isliked,
+    isSaved: row.issaved,
+    isFollowing: row.isfollowing,
+    isSelf: row.userid === meId,
+  };
+}
+
+const MOMENT_SELECT = `
+  SELECT m.*, u.username, u.prettyId, u.agencyId, u.isHostBadge, u.isDbBadge, u.phoneVerified,
+    (SELECT COUNT(*) FROM Moments m2 WHERE m2.userId = m.userId) AS postCount,
+    (SELECT COUNT(*) FROM MomentLikes ml2 JOIN Moments m3 ON m3.id = ml2.momentId WHERE m3.userId = m.userId) AS likesReceived,
+    (SELECT COUNT(*) FROM MomentComments mc2 JOIN Moments m4 ON m4.id = mc2.momentId WHERE m4.userId = m.userId) AS commentsReceived,
+    (SELECT COUNT(*) FROM MomentLikes WHERE momentId = m.id) AS likeCount,
+    (SELECT COUNT(*) FROM MomentComments WHERE momentId = m.id) AS commentCount,
+    EXISTS(SELECT 1 FROM MomentLikes WHERE momentId = m.id AND userId = $1) AS isLiked,
+    EXISTS(SELECT 1 FROM MomentSaves WHERE momentId = m.id AND userId = $1) AS isSaved,
+    EXISTS(SELECT 1 FROM Follows WHERE followerId = $1 AND followedId = m.userId) AS isFollowing,
+    (SELECT MAX(vl.level) FROM VipLevels vl WHERE vl.spendRequired <= (
+       SELECT COALESCE(SUM(-t.amount),0) FROM Transactions t WHERE t.userId = m.userId AND t.amount < 0
+         AND t.type IN ('gift_sent','purchase') AND t.createdAt >= date_trunc('month', now())
+     )) AS vipLevel,
+    (SELECT vl2.badgeColor FROM VipLevels vl2 WHERE vl2.level = (SELECT MAX(vl3.level) FROM VipLevels vl3 WHERE vl3.spendRequired <= (
+       SELECT COALESCE(SUM(-t2.amount),0) FROM Transactions t2 WHERE t2.userId = m.userId AND t2.amount < 0
+         AND t2.type IN ('gift_sent','purchase') AND t2.createdAt >= date_trunc('month', now())
+     ))) AS vipBadgeColor
+  FROM Moments m JOIN Users u ON u.id = m.userId`;
+
+app.get("/api/moments", requireAuth, async (req, res) => {
+  const tab = req.query.tab === "follow" ? "follow" : req.query.tab === "new" ? "new" : "discovery";
+  const page = Math.max(0, Number(req.query.page) || 0);
+  const limit = 10;
+  const offset = page * limit;
+  let sql, params;
+  if (tab === "follow") {
+    sql = `${MOMENT_SELECT} WHERE m.userId IN (SELECT followedId FROM Follows WHERE followerId = $1) ORDER BY m.createdAt DESC LIMIT $2 OFFSET $3`;
+    params = [req.user.id, limit, offset];
+  } else if (tab === "new") {
+    sql = `${MOMENT_SELECT} ORDER BY m.createdAt DESC LIMIT $2 OFFSET $3`;
+    params = [req.user.id, limit, offset];
+  } else {
+    // Discovery: a simple recency+engagement recommendation, not a real ML ranking
+    sql = `${MOMENT_SELECT} ORDER BY ((SELECT COUNT(*) FROM MomentLikes WHERE momentId = m.id) * 2 + (SELECT COUNT(*) FROM MomentComments WHERE momentId = m.id)) DESC, m.createdAt DESC LIMIT $2 OFFSET $3`;
+    params = [req.user.id, limit, offset];
+  }
+  const result = await query(sql, params);
+  res.json({ moments: result.rows.map((r) => momentCardRow(r, req.user.id)), hasMore: result.rows.length === limit });
+});
+
+app.get("/api/moments/:id", requireAuth, async (req, res) => {
+  const result = await query(`${MOMENT_SELECT} WHERE m.id = $2`, [req.user.id, Number(req.params.id)]);
+  if (result.rows.length === 0) return res.status(404).json({ error: "Moment not found" });
+  res.json({ moment: momentCardRow(result.rows[0], req.user.id) });
+});
+
+app.delete("/api/moments/:id", requireAuth, async (req, res) => {
+  const result = await query("DELETE FROM Moments WHERE id = $1 AND userId = $2 RETURNING id", [Number(req.params.id), req.user.id]);
+  if (result.rows.length === 0) return res.status(404).json({ error: "Moment not found or not yours" });
+  res.json({ message: "Deleted" });
+});
+
+app.post("/api/moments/:id/like", requireAuth, async (req, res) => {
+  await query("INSERT INTO MomentLikes (momentId, userId) VALUES ($1,$2) ON CONFLICT DO NOTHING", [Number(req.params.id), req.user.id]);
+  res.json({ message: "Liked" });
+});
+app.delete("/api/moments/:id/like", requireAuth, async (req, res) => {
+  await query("DELETE FROM MomentLikes WHERE momentId = $1 AND userId = $2", [Number(req.params.id), req.user.id]);
+  res.json({ message: "Unliked" });
+});
+app.post("/api/moments/:id/save", requireAuth, async (req, res) => {
+  await query("INSERT INTO MomentSaves (momentId, userId) VALUES ($1,$2) ON CONFLICT DO NOTHING", [Number(req.params.id), req.user.id]);
+  res.json({ message: "Saved" });
+});
+app.delete("/api/moments/:id/save", requireAuth, async (req, res) => {
+  await query("DELETE FROM MomentSaves WHERE momentId = $1 AND userId = $2", [Number(req.params.id), req.user.id]);
+  res.json({ message: "Unsaved" });
+});
+app.get("/api/moments/:id/comments", requireAuth, async (req, res) => {
+  const result = await query(
+    `SELECT c.id, c.content, c.createdAt, u.username, u.id AS userId FROM MomentComments c
+     JOIN Users u ON u.id = c.userId WHERE c.momentId = $1 ORDER BY c.createdAt ASC`,
+    [Number(req.params.id)]
+  );
+  res.json({ comments: result.rows.map((r) => ({ id: r.id, content: r.content, createdAt: r.createdat, username: r.username, userId: r.userid })) });
+});
+app.post("/api/moments/:id/comments", requireAuth, async (req, res) => {
+  const { content } = req.body;
+  if (!content) return res.status(400).json({ error: "content is required" });
+  await query("INSERT INTO MomentComments (momentId, userId, content) VALUES ($1,$2,$3)", [Number(req.params.id), req.user.id, content]);
+  res.json({ message: "Commented" });
+});
+app.post("/api/moments/:id/report", requireAuth, async (req, res) => {
+  const { reason } = req.body;
+  await query("INSERT INTO MessageReports (messageId, reportedBy, reason) VALUES (NULL,$1,$2)", [req.user.id, `Moment #${req.params.id}: ${reason || "Not specified"}`]);
+  res.json({ message: "Reported. Our team will review this." });
 });
 
 app.get("/api/follow/stories", requireAuth, async (req, res) => {
