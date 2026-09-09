@@ -89,6 +89,95 @@ ALTER TABLE Users ADD COLUMN IF NOT EXISTS prettyIdExpiresAt TIMESTAMPTZ;
 ALTER TABLE Users ADD COLUMN IF NOT EXISTS loginPinHash TEXT;
 ALTER TABLE Users ADD COLUMN IF NOT EXISTS clearedMessagesAt TIMESTAMPTZ;
 ALTER TABLE Users ADD COLUMN IF NOT EXISTS clearedLiveRecordAt TIMESTAMPTZ;
+-- STORE + DRESS UP ----------------------------------------------------------
+CREATE TABLE IF NOT EXISTS AppSettings (
+  key TEXT PRIMARY KEY,
+  value JSONB NOT NULL
+);
+INSERT INTO AppSettings (key, value) VALUES ('store_enabled', 'true'), ('dressup_enabled', 'true') ON CONFLICT (key) DO NOTHING;
+
+CREATE TABLE IF NOT EXISTS StoreItems (
+  id SERIAL PRIMARY KEY,
+  category TEXT NOT NULL, -- frame | ride | roomcover
+  name TEXT NOT NULL,
+  price INTEGER NOT NULL,
+  effect TEXT,
+  durationDays INTEGER NOT NULL DEFAULT 30,
+  active BOOLEAN NOT NULL DEFAULT TRUE,
+  saleDiscountPct INTEGER NOT NULL DEFAULT 0,
+  saleEndsAt TIMESTAMPTZ
+);
+INSERT INTO StoreItems (category, name, price, effect) VALUES
+  ('frame','Pink Angel',99999,'Pink wings + hearts'),
+  ('frame','Gold Dragon',199999,'Gold dragon'),
+  ('frame','Diamond Queen',299999,'Diamond shine'),
+  ('frame','Ice Crystal',399999,'Ice particles'),
+  ('frame','Fire Phoenix',499999,'Fire wings'),
+  ('frame','Galaxy Star',699999,'Galaxy moving'),
+  ('frame','Royal Crown',999999,'Royal crown'),
+  ('frame','Ocean King',1499999,'Water waves'),
+  ('frame','Thunder God',1999999,'Lightning'),
+  ('frame','GOD HEAVEN',4999999,'Rainbow GOD ring'),
+  ('ride','Love Bike',199999,'Pink bike'),
+  ('ride','Royal Carriage',399999,'Gold carriage'),
+  ('ride','Sports Car',599999,'Red car'),
+  ('ride','Magic Carpet',799999,'Flying carpet'),
+  ('ride','Crystal Boat',999999,'Crystal boat'),
+  ('ride','Dragon Mount',1299999,'Flying dragon'),
+  ('ride','Golden Ship',1699999,'Golden ship'),
+  ('ride','Unicorn',2199999,'Rainbow unicorn'),
+  ('ride','Space Rocket',2999999,'Rocket'),
+  ('ride','GOD HEAVEN RIDE',6999999,'Rainbow GOD cloud'),
+  ('roomcover','Cherry Garden',99999,'Cherry blossoms'),
+  ('roomcover','Night City',199999,'City lights'),
+  ('roomcover','Beach Sunset',299999,'Beach'),
+  ('roomcover','Snow Castle',399999,'Snow castle'),
+  ('roomcover','Forest Fairy',499999,'Forest'),
+  ('roomcover','Golden Palace',699999,'Gold palace'),
+  ('roomcover','Underwater',899999,'Ocean'),
+  ('roomcover','Space Galaxy',1199999,'Planets'),
+  ('roomcover','Diamond Hall',1599999,'Diamond room'),
+  ('roomcover','GOD HEAVEN ISLAND',3999999,'GOD island')
+  ON CONFLICT DO NOTHING;
+
+CREATE TABLE IF NOT EXISTS UserInventory (
+  id SERIAL PRIMARY KEY,
+  userId INTEGER NOT NULL REFERENCES Users(id),
+  itemId INTEGER NOT NULL REFERENCES StoreItems(id),
+  purchasedAt TIMESTAMPTZ DEFAULT now(),
+  expiresAt TIMESTAMPTZ NOT NULL,
+  equipped BOOLEAN NOT NULL DEFAULT FALSE,
+  notifiedExpirySoon BOOLEAN NOT NULL DEFAULT FALSE,
+  UNIQUE (userId, itemId)
+);
+
+-- VERIFY CENTER (DB / Agency / Host hierarchy) -----------------------------
+ALTER TABLE Users ADD COLUMN IF NOT EXISTS verifiedType TEXT DEFAULT 'none'; -- none | db | agency | host
+ALTER TABLE Users ADD COLUMN IF NOT EXISTS dbCode TEXT UNIQUE; -- own DB code, only set if verifiedType = 'db'
+ALTER TABLE Users ADD COLUMN IF NOT EXISTS supervisingDbId TEXT; -- for agency/host: the DB code overseeing them
+ALTER TABLE Users ADD COLUMN IF NOT EXISTS verificationRejectionReason TEXT;
+ALTER TABLE Users ADD COLUMN IF NOT EXISTS isBanned BOOLEAN DEFAULT FALSE;
+ALTER TABLE Agencies ADD COLUMN IF NOT EXISTS ownerUserId INTEGER REFERENCES Users(id);
+ALTER TABLE Agencies ADD COLUMN IF NOT EXISTS agencyCode TEXT UNIQUE;
+ALTER TABLE Agencies ADD COLUMN IF NOT EXISTS dbId TEXT; -- supervising DB code
+ALTER TABLE Agencies ADD COLUMN IF NOT EXISTS description TEXT;
+ALTER TABLE Agencies ADD COLUMN IF NOT EXISTS logoUrl TEXT;
+ALTER TABLE Agencies ADD COLUMN IF NOT EXISTS monthlyUserGoal INTEGER;
+ALTER TABLE Agencies ADD COLUMN IF NOT EXISTS fullName TEXT;
+ALTER TABLE Agencies ADD COLUMN IF NOT EXISTS phone TEXT;
+ALTER TABLE Agencies ADD COLUMN IF NOT EXISTS country TEXT;
+ALTER TABLE Agencies ADD COLUMN IF NOT EXISTS email TEXT;
+CREATE TABLE IF NOT EXISTS VerificationRequests (
+  id SERIAL PRIMARY KEY,
+  userId INTEGER NOT NULL REFERENCES Users(id),
+  type TEXT NOT NULL, -- db | agency | host
+  fields JSONB NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending', -- pending | approved | rejected
+  rejectionReason TEXT,
+  resolvedBy INTEGER REFERENCES Users(id),
+  createdAt TIMESTAMPTZ DEFAULT now(),
+  resolvedAt TIMESTAMPTZ
+);
 
 -- MESSAGE feature -----------------------------------------------------
 CREATE TABLE IF NOT EXISTS Messages (
@@ -256,6 +345,118 @@ INSERT INTO ReceiveLevelTiers (tierStart, tierEnd, threshold, colorHex, name) VA
   (100,100,20000000000,'linear-gradient(135deg,#F59E0B,#EC4899,#8B5CF6)','GOD HEAVEN Ride')
   ON CONFLICT (tierStart) DO NOTHING;
 
+-- RESELLER PANEL -----------------------------------------------------------
+-- Reseller status is NOT a DB flag - it's determined by matching the user's
+-- email against the RESELLER_EMAILS environment variable (see server.js).
+CREATE TABLE IF NOT EXISTS ResellerDeals (
+  id SERIAL PRIMARY KEY,
+  dealType TEXT NOT NULL, -- sell_diamonds_to_company | buy_coins_from_company | buy_diamonds_from_user | sell_coins_to_user
+  resellerId INTEGER NOT NULL REFERENCES Users(id),
+  counterpartyUserId INTEGER REFERENCES Users(id), -- NULL for company deals
+  initiatedBy INTEGER REFERENCES Users(id),
+  assetType TEXT NOT NULL, -- coins | diamonds
+  amount BIGINT NOT NULL,
+  usdAmount NUMERIC,
+  payoutInfo JSONB,
+  status TEXT NOT NULL DEFAULT 'pending', -- pending | approved | rejected
+  createdAt TIMESTAMPTZ DEFAULT now(),
+  resolvedAt TIMESTAMPTZ
+);
+
+-- FAMILY SYSTEM ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS Families (
+  id SERIAL PRIMARY KEY,
+  name TEXT UNIQUE NOT NULL,
+  headUserId INTEGER NOT NULL REFERENCES Users(id),
+  totalCoins BIGINT NOT NULL DEFAULT 0,
+  selectedCoverTier INTEGER,
+  createdAt TIMESTAMPTZ DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS FamilyMembers (
+  familyId INTEGER NOT NULL REFERENCES Families(id),
+  userId INTEGER NOT NULL UNIQUE REFERENCES Users(id),
+  role TEXT NOT NULL DEFAULT 'member', -- head | admin | member
+  contributedCoins BIGINT NOT NULL DEFAULT 0,
+  joinedAt TIMESTAMPTZ DEFAULT now(),
+  PRIMARY KEY (familyId, userId)
+);
+CREATE TABLE IF NOT EXISTS FamilyApplications (
+  id SERIAL PRIMARY KEY,
+  familyId INTEGER NOT NULL REFERENCES Families(id),
+  userId INTEGER NOT NULL REFERENCES Users(id),
+  status TEXT NOT NULL DEFAULT 'pending', -- pending | accepted | rejected
+  createdAt TIMESTAMPTZ DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS FamilyMessages (
+  id SERIAL PRIMARY KEY,
+  familyId INTEGER NOT NULL REFERENCES Families(id),
+  userId INTEGER REFERENCES Users(id), -- NULL = system message
+  content TEXT NOT NULL,
+  giftId INTEGER REFERENCES Gifts(id),
+  isSystem BOOLEAN DEFAULT FALSE,
+  createdAt TIMESTAMPTZ DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS FamilyLevelTiers (
+  tierStart INTEGER PRIMARY KEY, tierEnd INTEGER NOT NULL, threshold BIGINT NOT NULL,
+  title TEXT NOT NULL, badgeName TEXT NOT NULL, coverName TEXT NOT NULL
+);
+INSERT INTO FamilyLevelTiers (tierStart, tierEnd, threshold, title, badgeName, coverName) VALUES
+  (1,4,0,'New Family','Bronze Badge','Default'),
+  (5,9,10000000,'Rising Family','Silver Badge','Green Garden'),
+  (10,14,50000000,'Elite Family','Gold Badge','Bronze Castle'),
+  (15,19,200000000,'Noble Family','Platinum Badge','Silver Palace'),
+  (20,24,500000000,'Royal Family','Diamond Badge','Gold Throne'),
+  (25,29,1000000000,'Crown Family','Crown Badge','Diamond Ocean'),
+  (30,34,3000000000,'King Family','King Badge','Crown Kingdom'),
+  (35,39,5000000000,'Emperor Family','Emperor Badge','King Empire'),
+  (40,44,10000000000,'Legend Family','Legend Badge','Legend Star'),
+  (45,49,20000000000,'Mythic Family','Mythic Badge','Mythic Universe'),
+  (50,54,50000000000,'God Family','God Badge','God Heaven'),
+  (55,59,100000000000,'Titan Family','Titan Badge','Titan World'),
+  (60,64,200000000000,'Conqueror Family','Conqueror Badge','Conqueror War'),
+  (65,69,300000000000,'Celestial Family','Celestial Badge','Celestial Cloud'),
+  (70,74,500000000000,'Divine Family','Divine Badge','Divine Light'),
+  (75,79,1000000000000,'Immortal Family','Immortal Badge','Immortal Shadow'),
+  (80,84,2000000000000,'Eternal Family','Eternal Badge','Eternal Flame'),
+  (85,89,5000000000000,'Supreme Family','Supreme Badge','Supreme Ocean'),
+  (90,94,10000000000000,'GOD Family','GOD Badge','GOD Realm'),
+  (95,100,50000000000000,'GOD MYTHIC Family','GOD MYTHIC Badge','GOD MYTHIC Cover')
+  ON CONFLICT (tierStart) DO NOTHING;
+
+-- DAILY TARGET SYSTEM (Agency + DB) -----------------------------------------
+CREATE TABLE IF NOT EXISTS AgencyTargetTiers (
+  hostCountTier INTEGER PRIMARY KEY, -- 10, 20, 30 ...
+  giftTarget BIGINT NOT NULL,
+  reward INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS DbTargetTiers (
+  agencyCountTier INTEGER PRIMARY KEY, -- 10, 20, 30 ...
+  giftTarget BIGINT NOT NULL,
+  reward INTEGER NOT NULL
+);
+-- Pattern from the spec: target = tier * 100,000, reward = tier * 10,000 (agency);
+-- target = tier * 1,000,000, reward = tier * 50,000 (DB). Generated to tier 100.
+INSERT INTO AgencyTargetTiers (hostCountTier, giftTarget, reward)
+  SELECT n, n::bigint * 100000, n * 10000 FROM generate_series(10, 100, 10) AS n
+  ON CONFLICT (hostCountTier) DO NOTHING;
+INSERT INTO DbTargetTiers (agencyCountTier, giftTarget, reward)
+  SELECT n, n::bigint * 1000000, n * 50000 FROM generate_series(10, 100, 10) AS n
+  ON CONFLICT (agencyCountTier) DO NOTHING;
+
+CREATE TABLE IF NOT EXISTS DailyTargetResults (
+  id SERIAL PRIMARY KEY,
+  resultDate DATE NOT NULL,
+  entityType TEXT NOT NULL, -- agency | db | db_host
+  entityId INTEGER NOT NULL, -- Agencies.id for 'agency'; Users.id for 'db'/'db_host'
+  countValue INTEGER NOT NULL, -- host count or agency count used
+  giftTotal BIGINT NOT NULL,
+  tierReached INTEGER NOT NULL DEFAULT 0,
+  reward INTEGER NOT NULL DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'pending', -- pending | approved
+  approvedAt TIMESTAMPTZ,
+  UNIQUE (resultDate, entityType, entityId)
+);
+
 -- VIP SYSTEM --------------------------------------------------------------
 ALTER TABLE Users ADD COLUMN IF NOT EXISTS vipLastClaimAt TIMESTAMPTZ;
 CREATE TABLE IF NOT EXISTS VipLevels (
@@ -313,6 +514,7 @@ CREATE TABLE IF NOT EXISTS Transactions (
   meta JSONB,
   createdAt TIMESTAMPTZ DEFAULT now()
 );
+ALTER TABLE Transactions ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'completed'; -- completed | pending
 
 -- REFERRALS -------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS Referrals (
